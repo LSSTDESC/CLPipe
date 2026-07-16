@@ -12,9 +12,9 @@ FirecrownPipeline:
     sampler: 'emcee'
     use_cluster_counts: True
     use_mean_log_mass: True
-    emcee_walkers: 20
-    emcee_samples: 4000
-    emcee_nsteps: 10
+    emcee_walkers: 100
+    emcee_samples: 50000
+    emcee_nsteps: 20
     cosmological_parameters:
         omega_c: {'sample': True, 'values': [0.1552, 0.2052, 0.3552]}
         sigma_8: {'sample': True, 'values': [0.7, 0.800, 0.9]}
