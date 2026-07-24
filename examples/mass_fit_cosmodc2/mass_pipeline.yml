@@ -1,0 +1,23 @@
+id: TXPipe
+site:
+    name: local
+    max_threads: 60
+launcher:
+    name: mini
+    interval: 0.5
+modules: >
+    clpipeline
+python_paths: []
+stages:
+  - name: CLClusterMass
+    module_name: clpipeline.lensing_mass_fit
+    nprocess: 1
+output_dir: ./outputs/
+log_dir: ./logs
+config: ./config_in2p3_mor.yml
+inputs:
+    # See README for paths to download these files
+    cluster_profiles: /sps/lsst/groups/clusters/cl_pipeline_project/TXPipe_data/cosmodc2/outputs-full-2026/cluster_profiles.pkl
+    fiducial_cosmology: /sps/lsst/groups/clusters/cl_pipeline_project/TXPipe_data/cosmodc2/full/../fiducial_cosmology.yml
+resume: true
+pipeline_log: ./logs/log.txt
