@@ -1,0 +1,237 @@
+name: clpipe-ci
+
+# Two-tier CI:
+#   1. fast-tests: needs only `ceci`. Runs the file-generation tests
+#      (pytest -m "not slow"). Cheap, ~minutes. Gates everything below.
+#   2. full-stack-tests: needs the whole DESC science stack (pyccl, tjpcov,
+#      crow, firecrown, cosmosis + a built cosmosis-standard-library). Runs
+#      the slow tests that actually execute covariance computation and a
+#      cosmosis test-sampler run. Only starts if fast-tests passed, so a PR
+#      that fails the cheap check never spins up the expensive runner.
+#
+# The `needs: [fast-tests]` on the full-stack job is what enforces the gate.
+#
+# Matrix: py3.12 + py3.13. py3.14 intentionally excluded for now -- pyccl
+# only started shipping cp313 wheels in May 2026 and cosmosis/healpy/numcosmo
+# conda-forge builds for 3.14 aren't reliably available yet. Revisit once
+# upstream DESC packages publish 3.14 builds.
+
+on:
+  push:
+    branches:
+      - main
+    paths-ignore:
+      - "docs/**"
+      - "**/*.md"
+  pull_request:
+    branches:
+      - "*"
+    paths-ignore:
+      - "docs/**"
+      - "**/*.md"
+    types:
+      - opened
+      - synchronize
+      - reopened
+      - ready_for_review
+
+# Cancel superseded runs on the same ref (e.g. rapid pushes to a PR branch).
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CACHE_VERSION: 1
+  FAST_ENV_FILE: .github/ci/environment-fast.yml
+  FULL_ENV_FILE: firecrown_environment.yml
+
+jobs:
+  # ------------------------------------------------------------------ #
+  # TIER 1: fast, ceci-only. File generation tests.                    #
+  # ------------------------------------------------------------------ #
+  fast-tests:
+    name: Fast tests (ceci only, file generation)
+    runs-on: ubuntu-latest
+    # Skip draft PRs entirely -- they'll run once marked ready_for_review.
+    if: github.event.pull_request.draft != true
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Miniconda (fast env)
+        uses: conda-incubator/setup-miniconda@v3
+        with:
+          python-version: "3.12"
+          activate-environment: clpipe-fast
+          environment-file: ${{ env.FAST_ENV_FILE }}
+          use-mamba: true
+
+      - name: Cache fast conda env
+        uses: actions/cache/restore@v4
+        id: cache-fast
+        with:
+          path: ${{ env.CONDA }}/envs
+          key: conda-fast-${{ runner.os }}-py3.12-${{ hashFiles(env.FAST_ENV_FILE) }}-v${{ env.CACHE_VERSION }}
+
+      - name: Update fast env if cache missed
+        if: steps.cache-fast.outputs.cache-hit != 'true'
+        run: conda env update -n clpipe-fast -f ${{ env.FAST_ENV_FILE }}
+
+      - name: Install CLPipe (no deps)
+        shell: bash -l {0}
+        run: |
+          pip install --no-deps -e .
+
+      - name: Report environment
+        shell: bash -l {0}
+        run: |
+          python --version
+          python -c "import ceci; print('ceci OK')"
+          # Confirm the heavy stack is genuinely absent here, so the
+          # full_stack-gated tests are being skipped for the right reason
+          # (importorskip) rather than silently passing.
+          python - <<'PY'
+          for mod in ("pyccl", "tjpcov", "crow", "firecrown", "cosmosis"):
+              try:
+                  __import__(mod)
+                  print(f"WARNING: {mod} unexpectedly importable in fast env")
+              except ImportError:
+                  print(f"{mod} absent (expected)")
+          PY
+
+      - name: Run fast tests
+        shell: bash -l {0}
+        run: |
+          # -m "not slow" excludes the covariance-computation and
+          # cosmosis-execution tests. The full_stack-gated tests that only
+          # need imports will self-skip here via importorskip, since the
+          # heavy stack isn't installed in this env.
+          pytest tests -m "not slow" -v
+
+  # ------------------------------------------------------------------ #
+  # TIER 2: full DESC stack. Slow tests. Gated on fast-tests passing.  #
+  # ------------------------------------------------------------------ #
+  full-stack-tests:
+    name: Full stack tests (${{ matrix.os }}, py${{ matrix.python-version }})
+    needs: [fast-tests]
+    runs-on: ${{ matrix.os }}-latest
+    if: github.event.pull_request.draft != true
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix:
+        os: ["ubuntu"]
+        python-version: ["3.12", "3.13"]
+        # 3.14 deliberately excluded -- see note at top of file.
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Miniconda (full env)
+        uses: conda-incubator/setup-miniconda@v3
+        with:
+          python-version: ${{ matrix.python-version }}
+          activate-environment: clpipe-full
+          environment-file: ${{ env.FULL_ENV_FILE }}
+          use-mamba: true
+
+      - name: Cache full conda env
+        uses: actions/cache/restore@v4
+        id: cache-full
+        with:
+          path: ${{ env.CONDA }}/envs
+          key: conda-full-${{ runner.os }}-py${{ matrix.python-version }}-${{ hashFiles(env.FULL_ENV_FILE) }}-v${{ env.CACHE_VERSION }}
+
+      - name: Update full env if cache missed
+        if: steps.cache-full.outputs.cache-hit != 'true'
+        run: conda env update -n clpipe-full -f ${{ env.FULL_ENV_FILE }}
+
+      - name: Save full conda env
+        if: steps.cache-full.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: ${{ env.CONDA }}/envs
+          key: ${{ steps.cache-full.outputs.cache-primary-key }}
+
+      - name: Cache cosmosis-standard-library build
+        # CSL is a compile step (CAMB, CLASS, etc.), not a conda/pip install,
+        # so it's not covered by the conda env cache above. It only needs
+        # rebuilding when the environment (and therefore cosmosis-core)
+        # changes, so key it on the same env file hash.
+        uses: actions/cache/restore@v4
+        id: cache-csl
+        with:
+          path: ${{ env.CONDA }}/envs/clpipe-full/cosmosis-standard-library
+          key: csl-${{ runner.os }}-py${{ matrix.python-version }}-${{ hashFiles(env.FULL_ENV_FILE) }}-v${{ env.CACHE_VERSION }}
+
+      - name: Build cosmosis-standard-library
+        if: steps.cache-csl.outputs.cache-hit != 'true'
+        # The generated cosmosis .ini references ${CSL_DIR}/utility/... and
+        # ${CSL_DIR}/boltzmann/camb/... -- these come from the CSL, which
+        # must be *built* (not just pip/conda-installed) and pointed at via
+        # CSL_DIR. Mirrors firecrown's own CI setup.
+        shell: bash -l {0}
+        run: |
+          source ${CONDA_PREFIX}/bin/cosmosis-configure
+          pushd ${CONDA_PREFIX}
+          cosmosis-build-standard-library
+          popd
+
+      - name: Save cosmosis-standard-library build
+        if: steps.cache-csl.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: ${{ env.CONDA }}/envs/clpipe-full/cosmosis-standard-library
+          key: ${{ steps.cache-csl.outputs.cache-primary-key }}
+
+      - name: Set CSL_DIR
+        shell: bash -l {0}
+        run: echo "CSL_DIR=${CONDA_PREFIX}/cosmosis-standard-library" >> "$GITHUB_ENV"
+
+      - name: Install CLPipe (no deps)
+        shell: bash -l {0}
+        run: |
+          pip install --no-deps -e .
+
+      - name: Report environment
+        shell: bash -l {0}
+        run: |
+          python --version
+          echo "CSL_DIR=${CSL_DIR}"
+          python - <<'PY'
+          import importlib
+          for mod in ("ceci", "pyccl", "tjpcov", "crow", "firecrown", "cosmosis", "sacc"):
+              importlib.import_module(mod)
+              print(f"{mod} OK")
+          PY
+          # cosmosis must be invokable as a console script (the tests call
+          # `cosmosis <ini>` via subprocess, NOT `python -m cosmosis`).
+          which cosmosis && echo "cosmosis executable found"
+
+      - name: Run all tests (fast + slow)
+        shell: bash -l {0}
+        run: |
+          # Runs everything, including @pytest.mark.slow. The fast tests
+          # re-run here too -- cheap relative to the cosmosis run, and it
+          # confirms they also pass with the full stack installed (not just
+          # in the stripped-down fast env).
+          pytest tests -v
+
+  # ------------------------------------------------------------------ #
+  # (Optional, disabled) lint. Enable in a separate formatting PR once  #
+  # the pipeline files are actually black/isort-clean, so the           #
+  # reformatting diff doesn't get tangled up with functional changes.   #
+  # ------------------------------------------------------------------ #
+  # lint:
+  #   name: Lint (black + isort)
+  #   runs-on: ubuntu-latest
+  #   if: github.event.pull_request.draft != true
+  #   steps:
+  #     - uses: actions/checkout@v4
+  #     - uses: actions/setup-python@v5
+  #       with:
+  #         python-version: "3.12"
+  #     - name: Install linters
+  #       run: pip install black isort
+  #     - name: black --check
+  #       run: black --check --diff clpipe tests
+  #     - name: isort --check
+  #       run: isort --check --diff clpipe tests

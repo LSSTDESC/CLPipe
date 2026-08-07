@@ -6,12 +6,11 @@ dependencies:
   - babel
   - black
   - charset-normalizer
-  - clmm
   - compilers <= 1.8
   - cosmosis >= 3.0
   - cosmosis-build-standard-library
   - coverage
-  - cython < 3.0.0
+  - cython
   - dill
   - fitsio
   - flake8
@@ -20,12 +19,11 @@ dependencies:
   - getdist
   - glib
   - idna
-  - lsstdesc-ceci=2.4.*
   - matplotlib-base
   - more-itertools
   - mypy
-  - numcosmo >=0.21.1
   - numpy >= 2.0, < 2.4
+  - numcosmo >= 0.27
   - pip >= 20.1
   - portalocker
   - pybobyqa
@@ -34,7 +32,7 @@ dependencies:
   - pylint
   - pytest
   - pytest-cov
-  - python >=3.11
+  - python >=3.12
   - pyyaml
   - requests
   - sacc >= 2.1
@@ -58,6 +56,7 @@ dependencies:
   - linkchecker
   - pytest-json-report
   - pip:
+    - ceci >= 2.5
     - qp-prob
     - git+https://github.com/LSSTDESC/CLMM.git@1.14.6
     - git+https://github.com/LSSTDESC/firecrown

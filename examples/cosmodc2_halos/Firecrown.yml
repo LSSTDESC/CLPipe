@@ -2,7 +2,7 @@
 # stage classes.  Any stages imported in these
 # modules are automatically detected and their names can
 # be used below
-modules: clpipeline
+modules: clpipe
 
 # The launcher to use
 # These are defined in ceci/sites
@@ -48,8 +48,8 @@ site:
 # The list of stages to run and the number of processors
 # to use for each.
 stages:
-    - name: FirecrownPipeline
-      module_name: clpipeline.firecrown_pipeline
+    - name: CLPFirecrown
+      module_name: clpipe.clp_firecrown
       nprocess: 1
 
 # Definitions of where to find inputs for the overall pipeline.

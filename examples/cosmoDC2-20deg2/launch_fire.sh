@@ -11,4 +11,4 @@ conda activate /sps/lsst/groups/clusters/cl_pipeline_project/conda_envs/firecrow
 export PYTHONPATH=../../:$PYTHONPATH
 ceci CL_cosmoDC2-20deg2_concat_in2p3.yml --yamlId Firecrown
 #cd outputs
-#cosmosis cluster_counts_mean_mass_redshift_richness.ini
+#cosmosis sampler_file.ini

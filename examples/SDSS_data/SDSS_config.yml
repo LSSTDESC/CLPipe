@@ -1,6 +1,6 @@
 global:
     metacalibration: True
-FirecrownPipeline:
+CLPFirecrown:
     hmf: 'despali16'
     min_mass: 13.0
     max_mass: 16.0

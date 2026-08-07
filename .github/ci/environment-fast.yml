@@ -1,0 +1,14 @@
+# Fast CI environment for CLPipe.
+name: clpipe-fast
+channels:
+  - conda-forge
+dependencies:
+  - python=3.12
+  - pip
+  - numpy
+  - scipy
+  - pyyaml
+  - pytest
+  - pip:
+    - ceci
+    - sacc

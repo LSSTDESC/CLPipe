@@ -2,16 +2,26 @@
 requires = ["setuptools>=61.0"]
 build-backend = "setuptools.build_meta"
 [project]
-name = "CLPipeline"
+name = "CLPipe"
 version = "0.0.1"
 authors = [
   { name="Eduardo Barroso, Sabine Elles", email="eduardojsbarroso@gmail.com" },
 ]
-description = "CLPipeline project"
+description = "CLPipe project"
 readme = "README.md"
-requires-python = ">=3.8"
+requires-python = ">=3.12"
 [tool.setuptools.packages.find]
 where = ["."]
 [project.urls]
-Homepage = "https://github.com/eduardojsbarroso/CLPipeline"
-Issues = "https://github.com/eduardojsbarroso/CLPipeline/issues"
+Homepage = "https://github.com/LSSTDESC/CLPipe"
+Issues = "https://github.com/LSSTDESC/CLPipe/issues"
+
+[tool.pytest.ini_options]
+markers = [
+    "slow: does real covariance computation or runs cosmosis; needs the full DESC stack",
+]
+addopts = "--strict-markers"
+testpaths = ["tests"]
+filterwarnings = [
+    "ignore:Conversion of an array with ndim > 0 to a scalar is deprecated.*:DeprecationWarning:scipy\\.integrate",
+]

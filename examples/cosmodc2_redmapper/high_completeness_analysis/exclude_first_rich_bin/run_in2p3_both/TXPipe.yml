@@ -1,0 +1,44 @@
+id: TXPipe
+site:
+    name: local
+    max_threads: 60
+launcher:
+    name: mini
+    interval: 0.5
+modules: >
+    txpipe
+    txpipe.extensions
+    rail.estimation.algos.bpz_lite
+python_paths: []
+stages:
+  - name: TXSourceTomography
+    threads_per_process: 4
+  - name: TXSourceSelectorMetadetect
+    nprocess: 60
+  - name: CLClusterBinningRedshiftRichness
+    nprocess: 1
+  - name: CLClusterShearCatalogs
+    nprocess: 10   #>1 does not work with mpi
+  - name: CLClusterEnsembleProfiles
+    nprocess: 10
+  - name: CLClusterSACC
+    nprocess: 1
+    aliases:
+        cluster_profiles: cluster_profiles
+output_dir: /sps/lsst/groups/clusters/cl_pipeline_project/TXPipe_data/cosmodc2/outputs-selection/
+log_dir: ./logs_both
+config: ./config_in2p3_both.yml
+inputs:
+    # See README for paths to download these files
+    shear_catalog: /sps/lsst/groups/clusters/cl_pipeline_project/TXPipe_data/cosmodc2/full/shear_catalog.hdf5
+    #photometry_catalog:  /sps/lsst/users/mricci/TXPipe_data/data_link/cosmodc2/20deg2/photometry_catalog.hdf5
+    fiducial_cosmology: /sps/lsst/groups/clusters/cl_pipeline_project/TXPipe_data/cosmodc2/full/../fiducial_cosmology.yml
+    calibration_table: 
+        /sps/lsst/groups/clusters/cl_pipeline_project/TXPipe_data/cosmodc2/20deg2/sample_cosmodc2_w10year_errors.dat
+    spectroscopic_catalog: 
+        /sps/lsst/groups/clusters/cl_pipeline_project/TXPipe_data/cosmodc2/20deg2/spectroscopic_catalog.hdf5
+    cluster_catalog: /sps/lsst/groups/clusters/cl_pipeline_project/TXPipe_data/cosmodc2/full/cluster_catalog.hdf5
+    #shear_tomography_catalog: ./data/example/outputs_metadetect/shear_tomography_catalog.hdf5
+    source_photoz_pdfs: /sps/lsst/groups/clusters/cl_pipeline_project/TXPipe_data/cosmodc2/outputs-full-2026/source_photoz_pdfs.hdf5
+resume: true
+pipeline_log: ./logs_both/log_both.txt
