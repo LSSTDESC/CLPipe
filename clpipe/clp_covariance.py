@@ -337,4 +337,11 @@ class CLPCovariance(PipelineStage):
                 full_cov[j, i] = val
                 print(f"Replaced cov points at {i, j}. From {old_cov_ij} to {full_cov[i, j]}")
 
+        # Exposed for introspection (tests, debugging): the CROW theory
+        # prediction per cluster_counts data-point index, i.e. the Poisson
+        # baseline full_cov[i, i] is built from above. Not the same as
+        # cov_terms["gauss"] (index i), which is TJPCov's own separate
+        # counts variance estimate.
+        self.crow_theory_counts = dict(theory_counts)
+
         return full_cov

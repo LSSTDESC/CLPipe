@@ -126,9 +126,27 @@ def test_mixed_input_data_types_preserved(
 def test_ssc_replaced_counts_variance_at_least_poisson(
     full_stack, tmp_path, mock_fiducial_cosmology, mock_cluster_sacc_dense, mock_mor_parameters
 ):
+    """full_cov[i, i] = theory_counts[i] + (non-negative SSC term), so the
+    replaced variance is guaranteed to be >= the CROW theory prediction --
+    not >= the mock data value, which the theory model has no obligation to
+    match. Reads the theory prediction straight from the stage
+    (crow_theory_counts) instead of assuming it equals the fixture's
+    hardcoded COUNTS_PER_BIN.
+    """
     output_path = tmp_path / "cov_ssc_check.sacc"
     cfg = _base_tjpcov_config(mock_mor_parameters, replace_tjpcov_cov=True)
-    out = _run_tjpcov_stage(mock_cluster_sacc_dense, output_path, mock_fiducial_cosmology, cfg)
+
+    stage = CLPCovariance(
+        {
+            "config": None,
+            "clusters_sacc_file": str(mock_cluster_sacc_dense),
+            "clusters_sacc_file_cov": str(output_path),
+            "fiducial_cosmology": str(mock_fiducial_cosmology),
+        }
+    )
+    stage.config.update(cfg)
+    stage.run()
+    out = sacc.Sacc.load_fits(str(output_path))
 
     cc = sacc.standard_types.cluster_counts
     counts_points = out.get_data_points(data_type=cc)
@@ -136,10 +154,10 @@ def test_ssc_replaced_counts_variance_at_least_poisson(
     for dp in counts_points:
         idx = out.indices(data_type=cc, tracers=dp.tracers)[0]
         replaced_variance = out.covariance.covmat[idx, idx]
-        poisson_variance = dp.value
-        assert replaced_variance >= poisson_variance, (
-            f"SSC-replaced variance ({replaced_variance}) < Poisson "
-            f"variance ({poisson_variance}) for tracers {dp.tracers}."
+        poisson_variance = stage.crow_theory_counts[idx]
+        assert replaced_variance >= poisson_variance - 1e-8, (
+            f"SSC-replaced variance ({replaced_variance}) < CROW theory "
+            f"Poisson baseline ({poisson_variance}) for tracers {dp.tracers}."
         )
 
 
