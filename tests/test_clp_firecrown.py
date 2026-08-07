@@ -80,11 +80,9 @@ def _make_stage(tmp_path, sacc_path, fiducial_cosmology_path, cfg):
             "config": None,
             "clusters_sacc_file_cov": str(sacc_path),
             "fiducial_cosmology": str(fiducial_cosmology_path),
-            "sampler_file": str(
-                tmp_path / "cluster_counts_mean_mass_redshift_richness.ini"
-            ),
-            "likelihood_file": str(tmp_path / "cluster_redshift_richness.py"),
-            "priors_file": str(tmp_path / "cluster_richness_values.ini"),
+            "sampler_file": str(tmp_path / "sampler_file.ini"),
+            "likelihood_file": str(tmp_path / "likelihood_file.py"),
+            "priors_file": str(tmp_path / "priors_file.ini"),
         }
     )
     stage.config.update(cfg)
@@ -141,7 +139,7 @@ def _run_full_cosmosis(tmp_path, fiducial_cosmology_path, cfg, sacc_fixture):
     stage = _make_stage(tmp_path, sacc_in_place, fiducial_cosmology_path, cfg)
     stage.run()
 
-    ini_path = tmp_path / "cluster_counts_mean_mass_redshift_richness.ini"
+    ini_path = tmp_path / "sampler_file.ini"
     return subprocess.run(
         ["cosmosis", str(ini_path)],
         cwd=tmp_path,
@@ -248,7 +246,7 @@ def test_resume_flag_written_correctly(full_stack, tmp_path, mock_fiducial_cosmo
     stage = _make_stage(tmp_path, sacc_path, mock_fiducial_cosmology, cfg)
 
     ini_path = tmp_path / "test_resume.ini"
-    assert stage.generate_ini_file(str(ini_path))
+    assert stage.generate_ini_file(str(ini_path), "likelihood_file.py", "priors_file.ini")
 
     parser = configparser.ConfigParser()
     parser.read(ini_path)
@@ -263,7 +261,7 @@ def test_filename_option_used_not_hardcoded_default(full_stack, tmp_path, mock_f
     stage = _make_stage(tmp_path, sacc_path, mock_fiducial_cosmology, cfg)
 
     ini_path = tmp_path / "test_filename.ini"
-    stage.generate_ini_file(str(ini_path))
+    stage.generate_ini_file(str(ini_path), "likelihood_file.py", "priors_file.ini")
 
     parser = configparser.ConfigParser()
     parser.read(ini_path)
@@ -448,9 +446,9 @@ def test_cli_invocation_generates_all_outputs(full_stack, tmp_path, mock_fiducia
     cfg = _base_firecrown_config(sampler="test", filename=str(tmp_path / "chain.txt"))
     config_path = _write_stage_yaml(tmp_path, "CLPFirecrown", cfg)
 
-    ini_path = tmp_path / "cluster_counts_mean_mass_redshift_richness.ini"
-    py_path = tmp_path / "cluster_redshift_richness.py"
-    params_path = tmp_path / "cluster_richness_values.ini"
+    ini_path = tmp_path / "sampler_file.ini"
+    py_path = tmp_path / "likelihood_file.py"
+    params_path = tmp_path / "priors_file.ini"
 
     result = run_ceci_stage(
         module="clpipe",

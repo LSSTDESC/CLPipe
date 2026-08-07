@@ -134,7 +134,11 @@ class CLPFirecrown(PipelineStage):
         )
 
         ok_python = self.generate_python_file(output_likelihood_file)
-        ok_ini = self.generate_ini_file(output_cosmosis_file)
+        ok_ini = self.generate_ini_file(
+            output_cosmosis_file,
+            os.path.basename(output_likelihood_file),
+            os.path.basename(output_parameters_file),
+        )
         ok_params = self.generate_cosmosis_parameters_file(output_parameters_file)
 
         if not (ok_python and ok_ini and ok_params):
@@ -375,11 +379,17 @@ class CLPFirecrown(PipelineStage):
             print(f"Error generating file: {e}")
             return False
 
-    def generate_ini_file(self, output_ini_path):
+    def generate_ini_file(self, output_ini_path, likelihood_source_name, values_file_name):
         """Generates an .ini file.
 
         Args:
             output_ini_path (str): Path where the generated .ini file will be saved.
+            likelihood_source_name (str): Basename of the generated Firecrown
+                likelihood Python file (the `likelihood_file` output), written
+                alongside output_ini_path.
+            values_file_name (str): Basename of the generated CosmoSIS values
+                file (the `priors_file` output), written alongside
+                output_ini_path.
         """
         import cosmosis
         import firecrown
@@ -423,7 +433,7 @@ class CLPFirecrown(PipelineStage):
 
                 f.write("[pipeline]\n")
                 f.write("modules = consistency camb firecrown_likelihood\n")
-                f.write("values = cluster_richness_values.ini\n")
+                f.write(f"values = {values_file_name}\n")
                 f.write("likelihoods = firecrown\n")
                 f.write("quiet = F\n")
                 f.write("debug = F\n")
@@ -448,7 +458,7 @@ class CLPFirecrown(PipelineStage):
                 f.write(";; Fix this to use an environment variable to find the files.\n")
                 f.write(";; Set FIRECROWN_DIR to the base of the firecrown installation (or build, if you haven't installed it)\n")
                 f.write(f"file = {FIRECROWN_DIR}/connector/cosmosis/likelihood.py\n")
-                f.write("likelihood_source = cluster_redshift_richness.py\n")
+                f.write(f"likelihood_source = {likelihood_source_name}\n")
                 f.write("sampling_parameters_sections = firecrown_number_counts\n")
                 f.write(f"use_cluster_counts = {str(use_cluster_counts).upper()}\n")
                 f.write(f"use_mean_deltasigma = {str(use_mean_deltasigma).upper()}\n")

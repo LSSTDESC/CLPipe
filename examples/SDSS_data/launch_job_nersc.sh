@@ -11,4 +11,4 @@ conda activate /global/cfs/projectdirs/lsst/groups/CL/cl_pipeline_project/conda_
 export PYTHONPATH=../../:$PYTHONPATH
 ceci CL_SDSS_concat.yml --yamlId Firecrown
 cd outputs
-cosmosis cluster_counts_mean_mass_redshift_richness.ini
+cosmosis sampler_file.ini

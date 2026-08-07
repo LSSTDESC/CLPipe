@@ -10,10 +10,6 @@ stages:
   - name: CLPFirecrown
     module_name: clpipe.clp_firecrown
     nprocess: 1
-    aliases:
-      sampler_file: cluster_counts_mean_mass_redshift_richness
-      likelihood_file: cluster_redshift_richness
-      priors_file: cluster_richness_values
 inputs:
     fiducial_cosmology: /sps/lsst/groups/clusters/cl_pipeline_project/TXPipe_data/cosmodc2/full/../fiducial_cosmology_022_07.yml
     clusters_sacc_file_cov: ./outputs_both/clusters_sacc_file_cov.sacc

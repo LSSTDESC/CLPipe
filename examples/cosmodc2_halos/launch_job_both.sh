@@ -11,4 +11,4 @@ export PYTHONPATH=../../:$PYTHONPATH
 ceci TJPCov.yml
 ceci Firecrown.yml
 cd outputs_both
-cosmosis cluster_counts_mean_mass_redshift_richness.ini
+cosmosis sampler_file.ini
