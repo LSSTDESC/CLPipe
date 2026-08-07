@@ -13,8 +13,8 @@ requires-python = ">=3.12"
 [tool.setuptools.packages.find]
 where = ["."]
 [project.urls]
-Homepage = "https://github.com/eduardojsbarroso/CLPipe"
-Issues = "https://github.com/eduardojsbarroso/CLPipe/issues"
+Homepage = "https://github.com/LSSTDESC/CLPipe"
+Issues = "https://github.com/LSSTDESC/CLPipe/issues"
 
 [tool.pytest.ini_options]
 markers = [
