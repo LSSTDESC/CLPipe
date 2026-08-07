@@ -22,4 +22,10 @@ ceci TJPCov.yml
 ceci Firecrown.yml
 
 cd ./outputs_cosmo
-cosmosis cluster_counts_mean_mass_redshift_richness.ini
+export OMP_NUM_THREADS=1
+export OPENBLAS_NUM_THREADS=1
+export MKL_NUM_THREADS=1
+export NUMEXPR_NUM_THREADS=1
+
+mpirun -n ${SLURM_NTASKS} cosmosis --mpi cluster_counts_mean_mass_redshift_richness.ini
+

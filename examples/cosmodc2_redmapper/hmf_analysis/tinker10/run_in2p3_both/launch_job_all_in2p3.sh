@@ -1,5 +1,5 @@
 #!/usr/bin/bash
-#SBATCH --time=15:00:00
+#SBATCH --time=25:00:00
 #SBATCH --partition=hpc,lsst
 #SBATCH --cpus-per-task=1
 #SBATCH --mem=80gb
@@ -22,4 +22,9 @@ ceci TJPCov.yml
 ceci Firecrown.yml
 
 cd ./outputs_both
-cosmosis cluster_counts_mean_mass_redshift_richness.ini
+export OMP_NUM_THREADS=1
+export OPENBLAS_NUM_THREADS=1
+export MKL_NUM_THREADS=1
+export NUMEXPR_NUM_THREADS=1
+
+mpirun -n ${SLURM_NTASKS} cosmosis --mpi cluster_counts_mean_mass_redshift_richness.ini

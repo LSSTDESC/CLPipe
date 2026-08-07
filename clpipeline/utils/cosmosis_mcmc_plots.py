@@ -62,8 +62,8 @@ DEFAULT_COLORS = ['#000000', '#e41a1c', '#377eb8']
 
 GETDIST_SETTINGS = {
     "mult_bias_correction_order": 1,
-    "smooth_scale_2D": 3,
-    "smooth_scale_1D": 2,
+    "smooth_scale_2D": 4,
+    "smooth_scale_1D": 3,
     "boundary_correction_order": 1,
 }
 

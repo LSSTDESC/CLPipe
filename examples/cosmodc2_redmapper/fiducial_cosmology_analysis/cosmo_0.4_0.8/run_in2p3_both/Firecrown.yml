@@ -1,0 +1,19 @@
+id: Firecrown
+modules: clpipeline
+launcher:
+    name: mini
+    interval: 0.5
+site:
+    name: local
+    max_threads: 4
+stages:
+  - name: FirecrownPipeline
+    module_name: clpipeline.firecrown_pipeline
+    nprocess: 1
+inputs:
+    fiducial_cosmology: /sps/lsst/groups/clusters/cl_pipeline_project/TXPipe_data/cosmodc2/full/../fiducial_cosmology_04_08.yml
+    clusters_sacc_file_cov: ./outputs_both/clusters_sacc_file_cov.sacc
+config: ./config_in2p3_both.yml
+resume: false
+output_dir: ./outputs_both
+log_dir: ./logs_both

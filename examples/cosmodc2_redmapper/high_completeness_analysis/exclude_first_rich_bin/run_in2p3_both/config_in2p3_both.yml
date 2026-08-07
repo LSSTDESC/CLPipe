@@ -9,7 +9,7 @@ FirecrownPipeline:
   mass_def: '200c'
   use_shear_profile: true
   use_completeness: false
-  use_purity: true
+  use_purity: false
   use_grid: true
   is_deltasigma: true
   use_beta_interp: false
@@ -17,7 +17,7 @@ FirecrownPipeline:
   pivot_mass: 14.3
   pivot_z: 0.5
   survey_name: 'cosmodc2_redmapper'
-  sampler: 'test'
+  sampler: 'emcee'
   use_cluster_counts: true
   use_mean_log_mass: false
   use_mean_deltasigma: true
@@ -35,10 +35,6 @@ FirecrownPipeline:
     mass_distribution_sigma0: {'sample': true, 'values': [0.1, 0.562317194, 2.0]}
     mass_distribution_sigma1: {'sample': true, 'values': [-0.6, 0.04552506, 0.3]}
     mass_distribution_sigma2: {'sample': true, 'values': [-0.5, -0.0445, 2.0]}
-    purity_a_n: {'sample': false, 'values': 1.98298628209}
-    purity_b_n: {'sample': false, 'values': 0.81212176229}
-    purity_a_logm_piv: {'sample': false, 'values': 2.2183}
-    purity_b_logm_piv: {'sample': false, 'values': -0.6592}
     cluster_theory_cluster_concentration: {'sample': false, 'values': 3.8}
 TJPCovPipeline:
   use_mpi: false

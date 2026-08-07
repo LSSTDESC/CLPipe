@@ -272,7 +272,7 @@ class TJPCovPipeline(PipelineStage):
         proxy_grid_size    = 40
         mass_interval      = (np.log10(float(mor_params["min_halo_mass"])), np.log10(float(mor_params["max_halo_mass"])))
         cl_abundance          = ClusterAbundance(cosmo, hmf)
-        purity_aguena         = purity_models.PurityAguena16LnProxy()
+        purity_aguena         = None#purity_models.PurityAguena16LnProxy()
         completeness_aguena   = completeness_models.CompletenessAguena16()
         if is_wazp:
             purity_aguena = None
