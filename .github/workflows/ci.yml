@@ -1,4 +1,4 @@
-name: clpipeline-ci
+name: clpipe-ci
 
 # Two-tier CI:
 #   1. fast-tests: needs only `ceci`. Runs the file-generation tests
@@ -61,7 +61,7 @@ jobs:
         uses: conda-incubator/setup-miniconda@v3
         with:
           python-version: "3.12"
-          activate-environment: clpipeline-fast
+          activate-environment: clpipe-fast
           environment-file: ${{ env.FAST_ENV_FILE }}
           use-mamba: true
 
@@ -74,9 +74,9 @@ jobs:
 
       - name: Update fast env if cache missed
         if: steps.cache-fast.outputs.cache-hit != 'true'
-        run: conda env update -n clpipeline-fast -f ${{ env.FAST_ENV_FILE }}
+        run: conda env update -n clpipe-fast -f ${{ env.FAST_ENV_FILE }}
 
-      - name: Install CLPipeline (no deps)
+      - name: Install CLPipe (no deps)
         shell: bash -l {0}
         run: |
           pip install --no-deps -e .
@@ -129,7 +129,7 @@ jobs:
         uses: conda-incubator/setup-miniconda@v3
         with:
           python-version: ${{ matrix.python-version }}
-          activate-environment: clpipeline-full
+          activate-environment: clpipe-full
           environment-file: ${{ env.FULL_ENV_FILE }}
           use-mamba: true
 
@@ -142,7 +142,7 @@ jobs:
 
       - name: Update full env if cache missed
         if: steps.cache-full.outputs.cache-hit != 'true'
-        run: conda env update -n clpipeline-full -f ${{ env.FULL_ENV_FILE }}
+        run: conda env update -n clpipe-full -f ${{ env.FULL_ENV_FILE }}
 
       - name: Save full conda env
         if: steps.cache-full.outputs.cache-hit != 'true'
@@ -159,7 +159,7 @@ jobs:
         uses: actions/cache/restore@v4
         id: cache-csl
         with:
-          path: ${{ env.CONDA }}/envs/clpipeline-full/cosmosis-standard-library
+          path: ${{ env.CONDA }}/envs/clpipe-full/cosmosis-standard-library
           key: csl-${{ runner.os }}-py${{ matrix.python-version }}-${{ hashFiles(env.FULL_ENV_FILE) }}-v${{ env.CACHE_VERSION }}
 
       - name: Build cosmosis-standard-library
@@ -179,14 +179,14 @@ jobs:
         if: steps.cache-csl.outputs.cache-hit != 'true'
         uses: actions/cache/save@v4
         with:
-          path: ${{ env.CONDA }}/envs/clpipeline-full/cosmosis-standard-library
+          path: ${{ env.CONDA }}/envs/clpipe-full/cosmosis-standard-library
           key: ${{ steps.cache-csl.outputs.cache-primary-key }}
 
       - name: Set CSL_DIR
         shell: bash -l {0}
         run: echo "CSL_DIR=${CONDA_PREFIX}/cosmosis-standard-library" >> "$GITHUB_ENV"
 
-      - name: Install CLPipeline (no deps)
+      - name: Install CLPipe (no deps)
         shell: bash -l {0}
         run: |
           pip install --no-deps -e .
@@ -232,6 +232,6 @@ jobs:
   #     - name: Install linters
   #       run: pip install black isort
   #     - name: black --check
-  #       run: black --check --diff clpipeline tests
+  #       run: black --check --diff clpipe tests
   #     - name: isort --check
-  #       run: isort --check --diff clpipeline tests
+  #       run: isort --check --diff clpipe tests

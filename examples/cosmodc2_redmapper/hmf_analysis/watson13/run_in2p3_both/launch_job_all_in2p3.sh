@@ -9,14 +9,14 @@ module load conda
 export HDF5_DO_MPI_FILE_SYNC=0
 #export PYTHONPATH=/sps/lsst/groups/clusters/cl_pipeline_project/TXPipe:$PYTHONPATH
 conda activate /sps/lsst/groups/clusters/cl_pipeline_project/conda_envs/txpipe_clp
-export PYTHONPATH=/sps/lsst/users/ebarroso/CLPipeline:$PYTHONPATH
+export PYTHONPATH=/sps/lsst/users/ebarroso/CLPipe:$PYTHONPATH
 export PYTHONPATH=/sps/lsst/groups/clusters/cl_pipeline_project/TXPipe:$PYTHONPATH
 
 ceci TXPipe.yml
 
 conda deactivate
 conda activate /sps/lsst/groups/clusters/cl_pipeline_project/conda_envs/firecrown_developer_clp
-export PYTHONPATH=/sps/lsst/users/ebarroso/CLPipeline:$PYTHONPATH
+export PYTHONPATH=/sps/lsst/users/ebarroso/CLPipe:$PYTHONPATH
 
 ceci TJPCov.yml
 ceci Firecrown.yml

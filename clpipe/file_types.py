@@ -1,8 +1,8 @@
-# clpipeline/file_types.py
+# clpipe/file_types.py
 """
-CLPipeline-specific file types, subclassing base types from ceci.
+CLPipe-specific file types, subclassing base types from ceci.
 SACCFile and FiducialCosmology adapted from LSSTDESC/TXPipe (file_types.py).
-CosmosisFile and PythonFile are CLPipeline additions, not present in core ceci.
+CosmosisFile and PythonFile are CLPipe additions, not present in core ceci.
 """
 from ceci.file_types import DataFile, YamlFile
 import yaml

@@ -1,6 +1,6 @@
 global:
     metacalibration: True
-FirecrownPipeline:
+CLPFirecrown:
     hmf: 'despali16'
     min_mass: 13.0
     max_mass: 16.0
@@ -34,7 +34,7 @@ FirecrownPipeline:
         sigma_p0: {'sample': True, 'values': [0.02, 0.3, 0.6]}
         sigma_p1: {'sample': True, 'values': [-0.1, -0.03, 0.1]}
         sigma_p2: {'sample': True, 'values': [-0.1, 0.06, 0.1]}
-TJPCovPipeline:
+CLPCovariance:
     use_mpi: False
     do_xi: False
     #cov_type: [ClusterCountsGaussian]

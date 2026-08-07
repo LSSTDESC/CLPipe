@@ -5,7 +5,7 @@ import subprocess
 import pytest
 import yaml
 
-from clpipeline.firecrown_pipeline import FirecrownPipeline
+from clpipe.clp_firecrown import CLPFirecrown
 from .conftest import run_ceci_stage
 
 
@@ -75,16 +75,16 @@ def _base_firecrown_config(**overrides):
 
 
 def _make_stage(tmp_path, sacc_path, fiducial_cosmology_path, cfg):
-    stage = FirecrownPipeline(
+    stage = CLPFirecrown(
         {
             "config": None,
             "clusters_sacc_file_cov": str(sacc_path),
             "fiducial_cosmology": str(fiducial_cosmology_path),
-            "cluster_counts_mean_mass_redshift_richness": str(
+            "sampler_file": str(
                 tmp_path / "cluster_counts_mean_mass_redshift_richness.ini"
             ),
-            "cluster_redshift_richness": str(tmp_path / "cluster_redshift_richness.py"),
-            "cluster_richness_values": str(tmp_path / "cluster_richness_values.ini"),
+            "likelihood_file": str(tmp_path / "cluster_redshift_richness.py"),
+            "priors_file": str(tmp_path / "cluster_richness_values.ini"),
         }
     )
     stage.config.update(cfg)
@@ -446,22 +446,22 @@ def test_cli_invocation_generates_all_outputs(full_stack, tmp_path, mock_fiducia
     sacc_in_place.write_bytes(mock_cluster_sacc_dense.read_bytes())
 
     cfg = _base_firecrown_config(sampler="test", filename=str(tmp_path / "chain.txt"))
-    config_path = _write_stage_yaml(tmp_path, "FirecrownPipeline", cfg)
+    config_path = _write_stage_yaml(tmp_path, "CLPFirecrown", cfg)
 
     ini_path = tmp_path / "cluster_counts_mean_mass_redshift_richness.ini"
     py_path = tmp_path / "cluster_redshift_richness.py"
     params_path = tmp_path / "cluster_richness_values.ini"
 
     result = run_ceci_stage(
-        module="clpipeline",
-        stage_name="FirecrownPipeline",
+        module="clpipe",
+        stage_name="CLPFirecrown",
         config_path=config_path,
         io_args={
             "clusters_sacc_file_cov": str(sacc_in_place),
             "fiducial_cosmology": str(mock_fiducial_cosmology),
-            "cluster_counts_mean_mass_redshift_richness": str(ini_path),
-            "cluster_redshift_richness": str(py_path),
-            "cluster_richness_values": str(params_path),
+            "sampler_file": str(ini_path),
+            "likelihood_file": str(py_path),
+            "priors_file": str(params_path),
         },
         cwd=tmp_path,
     )

@@ -11,7 +11,7 @@ if not hasattr(np, 'bool'):
     np.bool = bool
 
 
-class TJPCovPipeline(PipelineStage):
+class CLPCovariance(PipelineStage):
     """
     TJPCov pipeline stage for covariance computation.
 
@@ -28,7 +28,7 @@ class TJPCovPipeline(PipelineStage):
     - Mass–observable relation (mor_parameters)
     - Pipeline behavior (replace_tjpcov_cov)
     """
-    name = "TJPCovPipeline"
+    name = "CLPCovariance"
 
     inputs = [
         ("clusters_sacc_file", SACCFile),  # For firecrown Likelihood

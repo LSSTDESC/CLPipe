@@ -2,19 +2,19 @@
 requires = ["setuptools>=61.0"]
 build-backend = "setuptools.build_meta"
 [project]
-name = "CLPipeline"
+name = "CLPipe"
 version = "0.0.1"
 authors = [
   { name="Eduardo Barroso, Sabine Elles", email="eduardojsbarroso@gmail.com" },
 ]
-description = "CLPipeline project"
+description = "CLPipe project"
 readme = "README.md"
 requires-python = ">=3.12"
 [tool.setuptools.packages.find]
 where = ["."]
 [project.urls]
-Homepage = "https://github.com/eduardojsbarroso/CLPipeline"
-Issues = "https://github.com/eduardojsbarroso/CLPipeline/issues"
+Homepage = "https://github.com/eduardojsbarroso/CLPipe"
+Issues = "https://github.com/eduardojsbarroso/CLPipe/issues"
 
 [tool.pytest.ini_options]
 markers = [

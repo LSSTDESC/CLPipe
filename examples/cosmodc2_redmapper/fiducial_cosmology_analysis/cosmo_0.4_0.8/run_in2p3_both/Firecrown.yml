@@ -1,5 +1,5 @@
 id: Firecrown
-modules: clpipeline
+modules: clpipe
 launcher:
     name: mini
     interval: 0.5
@@ -7,9 +7,13 @@ site:
     name: local
     max_threads: 4
 stages:
-  - name: FirecrownPipeline
-    module_name: clpipeline.firecrown_pipeline
+  - name: CLPFirecrown
+    module_name: clpipe.clp_firecrown
     nprocess: 1
+    aliases:
+      sampler_file: cluster_counts_mean_mass_redshift_richness
+      likelihood_file: cluster_redshift_richness
+      priors_file: cluster_richness_values
 inputs:
     fiducial_cosmology: /sps/lsst/groups/clusters/cl_pipeline_project/TXPipe_data/cosmodc2/full/../fiducial_cosmology_04_08.yml
     clusters_sacc_file_cov: ./outputs_both/clusters_sacc_file_cov.sacc

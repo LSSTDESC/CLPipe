@@ -26,7 +26,7 @@ _CCL_TO_COSMOSIS_COSMO_MAP = {
 }
 
 
-class FirecrownPipeline(PipelineStage):
+class CLPFirecrown(PipelineStage):
     """Firecrown pipeline stage for cluster cosmology analysis.
 
     This stage:
@@ -44,9 +44,9 @@ class FirecrownPipeline(PipelineStage):
     - Sampling configuration (emcee, polychord)
 
     Full configuration documentation:
-    See docs/firecrown_pipeline_options.txt
+    See docs/clp_firecrown.txt
     """
-    name = "FirecrownPipeline"
+    name = "CLPFirecrown"
 
     inputs = [
         ("clusters_sacc_file_cov", SACCFile),  # For firecrown Likelihood
@@ -54,9 +54,9 @@ class FirecrownPipeline(PipelineStage):
     ]
 
     outputs = [
-        ("cluster_counts_mean_mass_redshift_richness", CosmosisFile),
-        ("cluster_redshift_richness", PythonFile),
-        ("cluster_richness_values", CosmosisFile),
+        ("sampler_file", CosmosisFile),
+        ("likelihood_file", PythonFile),
+        ("priors_file", CosmosisFile),
     ]
 
     config_options = {
@@ -121,15 +121,15 @@ class FirecrownPipeline(PipelineStage):
         """
 
         output_cosmosis_file = self.get_output(
-            'cluster_counts_mean_mass_redshift_richness',
+            'sampler_file',
             final_name=True
         )
         output_likelihood_file = self.get_output(
-            'cluster_redshift_richness',
+            'likelihood_file',
             final_name=True
         )
         output_parameters_file = self.get_output(
-            'cluster_richness_values',
+            'priors_file',
             final_name=True
         )
 
@@ -139,7 +139,7 @@ class FirecrownPipeline(PipelineStage):
 
         if not (ok_python and ok_ini and ok_params):
             raise RuntimeError(
-                "FirecrownPipeline: one or more output files failed to "
+                "CLPFirecrown: one or more output files failed to "
                 "generate. See the printed errors above for details. "
                 f"(python={ok_python}, ini={ok_ini}, params={ok_params})"
             )

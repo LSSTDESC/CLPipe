@@ -1,8 +1,8 @@
-FirecrownPipeline Configuration Options
+CLPFirecrown Configuration Options
 ======================================
 
 This document describes the configuration options available for the
-FirecrownPipeline stage. These options control the construction of the
+CLPFirecrown stage. These options control the construction of the
 Firecrown likelihood, the cluster modeling assumptions, and the sampling
 configuration.
 
@@ -205,7 +205,7 @@ Notes and Caveats
 Example Configuration
 --------------------------------------------------
 
-FirecrownPipeline:
+CLPFirecrown:
     hmf: 'despali16'
     min_mass: 12.0
     max_mass: 15.5

@@ -1,6 +1,6 @@
 global:
     metacalibration: True
-FirecrownPipeline:
+CLPFirecrown:
     hmf: 'despali16'
     min_mass: 12.5
     max_mass: 17.0
@@ -46,7 +46,7 @@ FirecrownPipeline:
         completeness_b_n: {'sample': False, 'values': -0.028690}
         completeness_a_logm_piv: {'sample': False, 'values': 14.264386}
         completeness_b_logm_piv: {'sample': False, 'values': 0.029814}
-TJPCovPipeline:
+CLPCovariance:
     use_mpi: False
     do_xi: False
     wazp_catalog: True

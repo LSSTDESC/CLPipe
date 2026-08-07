@@ -1,6 +1,6 @@
 global:
   metacalibration: true
-FirecrownPipeline:
+CLPFirecrown:
   hmf: 'despali16'
   min_mass: 12.0
   max_mass: 15.5
@@ -42,7 +42,7 @@ FirecrownPipeline:
     purity_a_logm_piv: {'sample': false, 'values': 2.2183}
     purity_b_logm_piv: {'sample': false, 'values': -0.6592}
     cluster_theory_cluster_concentration: {'sample': false, 'values': 3.8}
-TJPCovPipeline:
+CLPCovariance:
   use_mpi: false
   do_xi: false
     #cov_type: [ClusterCountsGaussian]

@@ -1,15 +1,15 @@
-TJPCovPipeline Configuration Options
+CLPCovariance Configuration Options
 ===================================
 
 This document describes the configuration options available for the
-TJPCovPipeline stage. This stage computes covariance matrices for cluster
+CLPCovariance stage. This stage computes covariance matrices for cluster
 observables using TJPCov and outputs an updated SACC file.
 
 --------------------------------------------------
 Overview
 --------------------------------------------------
 
-The TJPCovPipeline:
+The CLPCovariance:
 
 - Reads an input SACC file (data vector)
 - Computes covariance terms using TJPCov
@@ -196,7 +196,7 @@ Known Limitations
 Example Configuration
 --------------------------------------------------
 
-TJPCovPipeline:
+CLPCovariance:
     use_mpi: False
     do_xi: False
     cov_type: [ClusterCountsGaussian, ClusterCountsSSC]

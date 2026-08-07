@@ -3,7 +3,7 @@ import pytest
 import sacc
 import yaml
 
-from clpipeline.tjpcov_pipeline import TJPCovPipeline
+from clpipe.clp_covariance import CLPCovariance
 from .conftest import run_ceci_stage
 
 pytestmark = pytest.mark.filterwarnings(
@@ -28,7 +28,7 @@ def _base_tjpcov_config(mor_parameters, **overrides):
 
 
 def _run_tjpcov_stage(input_sacc_path, output_sacc_path, fiducial_cosmology_path, tjpcov_cfg):
-    stage = TJPCovPipeline(
+    stage = CLPCovariance(
         {
             "config": None,
             "clusters_sacc_file": str(input_sacc_path),
@@ -180,7 +180,7 @@ def test_missing_fiducial_cosmology_input_fails_clearly(full_stack, tmp_path, mo
     cfg = _base_tjpcov_config(mock_mor_parameters)
     output_path = tmp_path / "cov_no_fiducial.sacc"
     with pytest.raises(Exception):
-        TJPCovPipeline(
+        CLPCovariance(
             {
                 "config": None,
                 "clusters_sacc_file": str(mock_cluster_sacc_dense),
@@ -198,12 +198,12 @@ def test_cli_invocation_produces_valid_covariance(
     full_stack, tmp_path, mock_fiducial_cosmology, mock_cluster_sacc_dense, mock_mor_parameters
 ):
     cfg = _base_tjpcov_config(mock_mor_parameters)
-    config_path = _write_stage_yaml(tmp_path, "TJPCovPipeline", cfg)
+    config_path = _write_stage_yaml(tmp_path, "CLPCovariance", cfg)
     output_path = tmp_path / "cov_cli.sacc"
 
     result = run_ceci_stage(
-        module="clpipeline",
-        stage_name="TJPCovPipeline",
+        module="clpipe",
+        stage_name="CLPCovariance",
         config_path=config_path,
         io_args={
             "clusters_sacc_file": str(mock_cluster_sacc_dense),

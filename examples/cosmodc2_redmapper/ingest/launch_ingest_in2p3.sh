@@ -8,7 +8,7 @@
 module load conda
 export HDF5_DO_MPI_FILE_SYNC=0
 conda activate /sps/lsst/groups/clusters/cl_pipeline_project/conda_envs/txpipe_clp
-export PYTHONPATH=/sps/lsst/users/ebarroso/CLPipeline:$PYTHONPATH
+export PYTHONPATH=/sps/lsst/users/ebarroso/CLPipe:$PYTHONPATH
 export PYTHONPATH=/sps/lsst/groups/clusters/cl_pipeline_project/TXPipe/:$PYTHONPATH
 
 ceci TXPipe_ingest.yml
