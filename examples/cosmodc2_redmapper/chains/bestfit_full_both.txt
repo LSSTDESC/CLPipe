@@ -1,15 +1,15 @@
 # Full both case: Counts + Lensing
-# Source chain: ./baseline/cosmodc2_redmapper_full_analysis/run_in2p3_both/outputs_both/output_rp/number_counts_samples.txt
+# Source chain: ./baseline//cosmodc2_redmapper_full_analysis/run_in2p3_both/outputs_both/output_rp/number_counts_samples.txt
 # Burn fraction: 0.3
 # Best fit definition: maximum post
-# Best post: -1.1761083888e+02
+# Best post: -1.1951642074e+02
 #
 # parameter best_fit weighted_average_posterior
-cosmological_parameters--omega_c         2.5289705648e-01 2.7369904045e-01
-cosmological_parameters--sigma_8         7.8917598218e-01 7.7443513231e-01
-firecrown_number_counts--mass_distribution_mu0 3.2654425121e+00 3.3034644412e+00
-firecrown_number_counts--mass_distribution_mu1 9.9778282654e-01 1.0355275476e+00
-firecrown_number_counts--mass_distribution_mu2 -7.7829681125e-02 1.0206901955e-01
-firecrown_number_counts--mass_distribution_sigma0 5.5001573760e-01 5.1148952891e-01
-firecrown_number_counts--mass_distribution_sigma1 -1.3848437594e-03 -5.7523265057e-03
-firecrown_number_counts--mass_distribution_sigma2 3.7081539451e-01 3.2140833074e-01
+cosmological_parameters--omega_c         2.2370613303e-01 2.5505612159e-01
+cosmological_parameters--sigma_8         7.8845163214e-01 7.7746117479e-01
+firecrown_number_counts--mass_distribution_mu0 3.4334793488e+00 3.3788160150e+00
+firecrown_number_counts--mass_distribution_mu1 9.2793216736e-01 9.9314738836e-01
+firecrown_number_counts--mass_distribution_mu2 -2.9343202561e-01 -1.3094692825e-01
+firecrown_number_counts--mass_distribution_sigma0 4.9620234836e-01 4.8919998309e-01
+firecrown_number_counts--mass_distribution_sigma1 6.5603676387e-02 1.3105748997e-03
+firecrown_number_counts--mass_distribution_sigma2 5.1616388171e-01 3.8966333399e-01

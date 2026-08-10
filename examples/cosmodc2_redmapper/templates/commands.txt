@@ -1,5 +1,5 @@
 
-SCRIPT=${PWD}/../../../clpipeline/scripts/configure_pipeline.py
+SCRIPT=${PWD}/../../../clpipe/scripts/configure_pipeline.py
 CFG=baseline_configuration.yml
 
 Change the site if running at nersc!!!!

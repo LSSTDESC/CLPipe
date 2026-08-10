@@ -1,6 +1,6 @@
 global:
   metacalibration: true
-FirecrownPipeline:
+CLPFirecrown:
   hmf: 'tinker08'
   min_mass: 12.0
   max_mass: 15.5
@@ -9,7 +9,7 @@ FirecrownPipeline:
   mass_def: '200c'
   use_shear_profile: true
   use_completeness: true
-  use_purity: true
+  use_purity: false
   use_grid: true
   is_deltasigma: true
   use_beta_interp: false
@@ -37,12 +37,8 @@ FirecrownPipeline:
     completeness_b_n: {'sample': false, 'values': 0.7751}
     completeness_a_logm_piv: {'sample': false, 'values': 13.31}
     completeness_b_logm_piv: {'sample': false, 'values': 0.2025}
-    purity_a_n: {'sample': false, 'values': 1.98298628209}
-    purity_b_n: {'sample': false, 'values': 0.81212176229}
-    purity_a_logm_piv: {'sample': false, 'values': 2.2183}
-    purity_b_logm_piv: {'sample': false, 'values': -0.6592}
     cluster_theory_cluster_concentration: {'sample': false, 'values': 3.8}
-TJPCovPipeline:
+CLPCovariance:
   use_mpi: false
   do_xi: false
     #cov_type: [ClusterCountsGaussian]

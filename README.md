@@ -1,4 +1,4 @@
-# CLPipeline
+# CLPipe
 
 Repository dedicated to the Cluster Working Group of the DESC-LSST collaboration.
 
@@ -98,7 +98,7 @@ Every stage can also be run standalone, without a full pipeline file, since
 each `PipelineStage` subclass exposes its own CLI:
 
 ```bash
-python -m clpipeline <StageName> --config=<config.yml> --<tag>=<path> ...
+python -m clpipe <StageName> --config=<config.yml> --<tag>=<path> ...
 ```
 
 This is mainly useful for debugging a single stage in isolation.

@@ -1,5 +1,5 @@
-# Fast CI environment for CLPipeline.
-name: clpipeline-fast
+# Fast CI environment for CLPipe.
+name: clpipe-fast
 channels:
   - conda-forge
 dependencies:

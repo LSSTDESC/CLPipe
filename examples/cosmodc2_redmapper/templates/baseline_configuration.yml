@@ -2,7 +2,7 @@ id: configure
 
 site: in2p3
 
-clpipeline_dir: /sps/lsst/users/ebarroso/CLPipeline
+clpipe_dir: /sps/lsst/users/ebarroso/CLPipe
 # Directory that will contain all the files
 folder: baseline
 analysis: cosmodc2_redmapper_full_analysis

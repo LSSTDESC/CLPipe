@@ -1,5 +1,5 @@
 id: Firecrown
-modules: clpipeline
+modules: clpipe
 launcher:
     name: mini
     interval: 0.5
@@ -7,8 +7,8 @@ site:
     name: local
     max_threads: 4
 stages:
-  - name: FirecrownPipeline
-    module_name: clpipeline.firecrown_pipeline
+  - name: CLPFirecrown
+    module_name: clpipe.clp_firecrown
     nprocess: 1
 inputs:
     clusters_sacc_file_cov: $OUTPUTDIR/clusters_sacc_file_cov.sacc
@@ -75,7 +75,7 @@ resume: true
 pipeline_log: $LOGDIR/log_$RUNIDENTIFIER.txt
 ---
 id: TJPCov
-modules: clpipeline
+modules: clpipe
 launcher:
     name: mini
     interval: 0.5
@@ -83,8 +83,8 @@ site:
     name: local
     max_threads: 4
 stages:
-  - name: TJPCovPipeline
-    module_name: clpipeline.tjpcov_pipeline
+  - name: CLPCovariance
+    module_name: clpipe.clp_covariance
     nprocess: 1
 inputs:
     clusters_sacc_file: $TXPIPE_OUTPUTDIR/cluster_sacc_catalog.sacc

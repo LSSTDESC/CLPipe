@@ -1,5 +1,5 @@
 """
-Shared fixtures for CLPipeline tests.
+Shared fixtures for CLPipe tests.
 
 All test artifacts (generated sacc/ini/py files) must live under pytest's
 `tmp_path`, never under a path in the repo -- tmp_path is unique per test
@@ -55,9 +55,9 @@ def _build_mock_cluster_sacc(dense_shear_cov: bool, include_shear: bool = True) 
             (z, richness) bin has genuine radius-radius correlation
             (constant-correlation model). If False, it's diagonal only
             (per-radius variance, no cross terms) -- mirrors the
-            "diagonal_shear_covariance=True" TJPCovPipeline behavior.
+            "diagonal_shear_covariance=True" CLPCovariance behavior.
         include_shear: if False, only cluster_counts data points are added
-            (exercises the TJPCovPipeline `only_counts` branch).
+            (exercises the CLPCovariance `only_counts` branch).
 
     Returns:
         sacc.Sacc: populated, with covariance, NOT yet saved to disk.
@@ -147,7 +147,7 @@ def mock_cluster_sacc_diagonal(tmp_path):
 def mock_cluster_sacc_counts_only(tmp_path):
     """Mock cluster SACC with ONLY cluster_counts (no shear/delta_sigma at
     all), written to tmp_path. Exercises the `only_counts` branch of
-    TJPCovPipeline.run(), where merge_data_covariance should never be
+    CLPCovariance.run(), where merge_data_covariance should never be
     invoked (has_covariance and only_counts both matter -- here
     only_counts=True regardless of has_covariance).
     """
@@ -218,12 +218,12 @@ def full_stack():
 
 def run_ceci_stage(module, stage_name, config_path, io_args, cwd):
     """Run a single ceci PipelineStage via the CLI, matching how
-    clpipeline/__main__.py -> PipelineStage.main() is invoked in
+    clpipe/__main__.py -> PipelineStage.main() is invoked in
     production.
 
     Args:
-        module: python -m target, e.g. "clpipeline"
-        stage_name: e.g. "TJPCovPipeline"
+        module: python -m target, e.g. "clpipe"
+        stage_name: e.g. "CLPCovariance"
         config_path: path to a YAML config file with a top-level key
             matching stage_name (same structure as your production configs)
         io_args: dict of {tag: path} for both inputs and outputs
