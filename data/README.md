@@ -28,9 +28,9 @@ data/
 Keep this layout in sync with the `../../data/...` paths hardcoded in the
 example notebooks/scripts if you ever reorganize it.
 
-## Refreshing the hosted bundle
+## Refreshing the hosted bundle from CCIN2P3
 
-Source of truth is CC-IN2P3 (`/sps/lsst/users/ebarroso/CLPipe/examples/`).
+If files are stored in CC-IN2P3 or another CC (`/sps/lsst/users/ebarroso/CLPipe/examples/`).
 After regenerating chains/sacc there (the notebooks already save straight to
 `../../data/...` locally):
 
