@@ -194,13 +194,14 @@ def _print_constraints(
 # ══════════════════════════════════════════════════════════════════════════════
 
 def plot_triangle(
-    paths:   list[str],
-    params,
-    styles:  list[ChainStyle],
+    paths:   list[str]       = None,
+    params  = None,
+    styles:  list[ChainStyle] = None,
     name:    str        = "triangle_plot",
     config:  PlotConfig = None,
     save: bool = True,
     multiple_fiducials: bool = False,
+    samples: list[MCSamples] = None,
 ) -> list[MCSamples]:
     """
     Generate a paper-ready GetDist triangle plot.
@@ -208,6 +209,8 @@ def plot_triangle(
     Parameters
     ----------
     paths   : One chain file path per chain, matched to `styles`.
+              Mutually exclusive with `samples`. Burn-in (config.burn_fraction)
+              is applied on load.
     params  : List of (param_name, fiducial_value) tuples.
               If multiple_fiducials=True, this should instead be a list
               of parameter lists, one per chain.
@@ -216,6 +219,9 @@ def plot_triangle(
     config  : PlotConfig instance.
     save    : Save figure.
     multiple_fiducials : If True, use one fiducial dictionary per chain.
+    samples : Already-loaded MCSamples list (e.g. from fits_to_samples()).
+              Mutually exclusive with `paths`. No burn-in is applied --
+              use this for chains that are already trimmed.
 
     Returns
     -------
@@ -224,15 +230,19 @@ def plot_triangle(
     if config is None:
         config = PlotConfig()
 
-    if len(paths) != len(styles):
+    if (paths is None) == (samples is None):
+        raise ValueError("Provide exactly one of `paths` or `samples`, not both.")
+
+    n_chains = len(paths) if paths is not None else len(samples)
+    if n_chains != len(styles):
         raise ValueError(
-            f"len(paths)={len(paths)} must equal len(styles)={len(styles)}"
+            f"len(paths or samples)={n_chains} must equal len(styles)={len(styles)}"
         )
 
     if multiple_fiducials:
-        if len(params) != len(paths):
+        if len(params) != n_chains:
             raise ValueError(
-                f"Expected {len(paths)} parameter lists, got {len(params)}."
+                f"Expected {n_chains} parameter lists, got {len(params)}."
             )
 
         param_names = [p[0] for p in params[0]]
@@ -245,10 +255,15 @@ def plot_triangle(
 
     # ── Load chains ───────────────────────────────────────────────────────────
     samples_list = []
-    for path, style in zip(paths, styles):
-        s = _load_cosmosis_chain(path, param_names, config.burn_fraction)
-        samples_list.append(s)
-        print(f"  {style.label}: {len(s.samples):,} samples  ({path})")
+    if paths is not None:
+        for path, style in zip(paths, styles):
+            s = _load_cosmosis_chain(path, param_names, config.burn_fraction)
+            samples_list.append(s)
+            print(f"  {style.label}: {len(s.samples):,} samples  ({path})")
+    else:
+        for s, style in zip(samples, styles):
+            samples_list.append(s)
+            print(f"  {style.label}: {len(s.samples):,} samples  (pre-loaded)")
 
     # ── Build GetDist arguments per chain ─────────────────────────────────────
     colors = [s.color for s in styles]
@@ -260,6 +275,26 @@ def plot_triangle(
     contour_ls = [s.linestyle for s in styles]
     contour_lws = [s.linewidth for s in styles]
     labels = [s.label for s in styles]
+
+    # ── Resolve requested param names against what's actually loaded ─────────
+    # Old-format ./chains/*.fits files (saved before the RAWNAMES fix) lost
+    # their raw LaTeX names to a header-key collision and fall back to plain
+    # (backslash-stripped) column names -- map onto whichever is actually
+    # present so restricting to a param subset doesn't hard-fail against
+    # not-yet-regenerated snapshots.
+    available = set(samples_list[0].getParamNames().list()) if samples_list else set()
+
+    def _resolve(name: str) -> str:
+        if name in available:
+            return name
+        stripped = name.lstrip("\\")
+        return stripped if stripped in available else name
+
+    plot_param_names = [_resolve(n) for n in param_names]
+    plot_markers = (
+        None if multiple_fiducials
+        else {resolved: fiducial_values[orig] for orig, resolved in zip(param_names, plot_param_names)}
+    )
 
     # ── Render ────────────────────────────────────────────────────────────────
     with mpl.rc_context(_PAPER_RC):
@@ -273,6 +308,7 @@ def plot_triangle(
 
         g.triangle_plot(
             samples_list,
+            params=plot_param_names,
             legend_labels=labels,
             filled=filled,
             colors=colors,
@@ -281,7 +317,7 @@ def plot_triangle(
             contour_ls=contour_ls,
             contour_lws=contour_lws,
             fine_bins=1,
-            markers=None if multiple_fiducials else fiducial_values,
+            markers=plot_markers,
             param_limits=config.param_limits,
         )
 
@@ -303,7 +339,7 @@ def plot_triangle(
 
     # ── Constraints ───────────────────────────────────────────────────────────
     if config.print_constraints:
-        _print_constraints(samples_list, styles, param_names)
+        _print_constraints(samples_list, styles, plot_param_names)
 
     return samples_list
 
@@ -385,14 +421,14 @@ def chains_to_fits(
         if src_path is not None:
             table.meta["SRC_PATH"] = str(src_path)
 
-        # Fiducial values — FITS keywords are ≤ 8 chars, so we abbreviate
-        for name, fid in fiducial_values.items():
-            key = f"FID_{_fits_col(name)}"[:8]
-            table.meta[key] = fid
-
-        # Raw parameter names stored as comment cards (preserves LaTeX strings)
-        for col_name, raw_name in zip([_fits_col(n) for n in param_names], param_names):
-            table.meta[f"RAW_{col_name}"[:8]] = raw_name
+        # Raw parameter names + fiducial values, stored as single delimited
+        # strings. FITS header keywords are capped at 8 chars and forced
+        # uppercase, so per-column keys like "RAW_<col>"[:8] collide for any
+        # params sharing an 8-char prefix (e.g. sigma_8/sigma_0/sigma_m/
+        # sigma_z all truncate to "RAW_SIGM") -- only the last one written
+        # would survive. A single delimited string sidesteps that entirely.
+        table.meta["RAWNAMES"] = "|".join(param_names)
+        table.meta["FIDVALS"]  = "|".join(repr(fiducial_values[n]) for n in param_names)
 
         # ── Write ─────────────────────────────────────────────────────────────
         out_path = out_dir / f"{label}.fits"
@@ -423,7 +459,16 @@ def fits_to_samples(
     for fp in fits_paths:
         table  = Table.read(str(fp))
         array  = np.column_stack([table[col].data for col in table.colnames])
-        names  = [table.meta.get(f"RAW_{col}"[:8], col) for col in table.colnames]
+
+        if "RAWNAMES" in table.meta:
+            # Current format: names round-tripped exactly, no collisions.
+            names = table.meta["RAWNAMES"].split("|")
+        else:
+            # Old-format file (saved before this fix): per-column RAW_<col>
+            # keys collide for params sharing an 8-char prefix, so this is
+            # best-effort only -- falls back to the plain column name.
+            names = [table.meta.get(f"RAW_{col}"[:8], col) for col in table.colnames]
+
         label  = table.meta.get("LABEL", Path(fp).stem)
 
         sample = MCSamples(
