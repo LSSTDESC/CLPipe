@@ -120,7 +120,7 @@ class PlotConfig:
     print_constraints : Print LaTeX mean ± σ for every parameter after plotting.
     """
     figsize:           float       = 7.0
-    burn_fraction:     float       = 0.3
+    burn_fraction:     float       = 0.15
     param_limits:      dict        = field(default_factory=dict)
     output_dir:        str         = "."
     dpi:               int         = 150
@@ -131,27 +131,80 @@ class PlotConfig:
 # Internal helpers
 # ══════════════════════════════════════════════════════════════════════════════
 
+def _parse_n_walkers(path: str) -> Optional[int]:
+    """Scan a CosmoSIS chain file's leading comment lines for '#walkers=N'
+    (written by the emcee sampler). Returns None if absent (e.g. a
+    non-emcee sampler) -- burn-in then falls back to a flat row-fraction cut."""
+    with open(path) as f:
+        for line in f:
+            if not line.startswith("#"):
+                break
+            if line.startswith("#walkers="):
+                return int(line.strip().split("=", 1)[1])
+    return None
+
+
 def _load_cosmosis_chain(
     path: str,
     param_names: list[str],
     burn_fraction: float,
 ) -> MCSamples:
-    """Read one CosmoSIS chain file and return a trimmed MCSamples object."""
-    if _cosmosis_read is None:
-        raise ImportError("CosmoSIS is not installed; cannot read chain files.")
+    """Read one CosmoSIS chain file and return a trimmed MCSamples object.
 
-    raw   = _cosmosis_read(path)
-    rows  = raw[1]["data"][1][0]
+    param_names must match the first len(param_names) columns of the chain,
+    in order (CosmoSIS's own convention). If the chain's header has a
+    "post" or "like" column (first match wins), it's captured as loglikes
+    (getdist convention: loglikes = -log(posterior), so loglikes = -post).
+
+    If the file was written by emcee (has '#walkers=N'), burn-in is removed
+    in walker-aligned step units -- matching how the chain was actually
+    generated -- instead of an arbitrary fraction of rows, and the walker
+    count is stashed on the returned MCSamples as `_n_walkers`. This lets
+    chains_to_fits persist it, so the per-walker/per-step structure that
+    autocorrelation time / R-hat need can be recovered straight from the
+    saved fits later, without keeping the raw chain around (see
+    fits_to_walker_chain below)."""
+    with open(path) as f:
+        header = f.readline().lstrip("#").split()
     n_par = len(param_names)
-    array = np.array([[row[i] for i in range(n_par)] for row in rows])
+    n_walkers = _parse_n_walkers(path)
 
-    samples = MCSamples(
-        samples  = array,
-        names    = param_names,
-        labels   = param_names,
-        settings = GETDIST_SETTINGS,
-    )
-    samples.removeBurn(burn_fraction)
+    data = np.loadtxt(path)
+    if data.ndim == 1:
+        data = data[None, :]
+    array = data[:, :n_par]
+
+    loglikes = None
+    for col in ("post", "like"):
+        if col in header:
+            loglikes = -data[:, header.index(col)]
+            break
+
+    if n_walkers and len(array) % n_walkers == 0:
+        n_steps = len(array) // n_walkers
+        burn_rows = int(burn_fraction * n_steps) * n_walkers
+        array = array[burn_rows:]
+        if loglikes is not None:
+            loglikes = loglikes[burn_rows:]
+        samples = MCSamples(
+            samples  = array,
+            names    = param_names,
+            labels   = param_names,
+            loglikes = loglikes,
+            settings = GETDIST_SETTINGS,
+        )
+    else:
+        samples = MCSamples(
+            samples  = array,
+            names    = param_names,
+            labels   = param_names,
+            loglikes = loglikes,
+            settings = GETDIST_SETTINGS,
+        )
+        samples.removeBurn(burn_fraction)
+        n_walkers = None
+
+    samples._n_walkers = n_walkers
     return samples
 
 
@@ -353,7 +406,7 @@ def chains_to_fits(
     output_dir:    str                  = ".",
     paths:         list[str]            = None,
     samples:       list[MCSamples]      = None,
-    burn_fraction: float                = 0.3,
+    burn_fraction: float                = 0.0,
     overwrite:     bool                 = True,
 ) -> list[Path]:
     """
@@ -374,6 +427,10 @@ def chains_to_fits(
     paths        : CosmoSIS chain file paths.  Mutually exclusive with `samples`.
     samples      : Already-loaded MCSamples list.  Mutually exclusive with `paths`.
     burn_fraction: Burn-in to remove when loading from `paths` (ignored for `samples`).
+                   Defaults to 0.0 -- the FULL chain is saved. Burn-in is applied at
+                   load time instead (see fits_to_samples / fits_to_walker_chain),
+                   so downstream code can choose its own trim rather than having a
+                   fixed cut baked irreversibly into the saved file.
     overwrite    : Overwrite existing files silently.
 
     Returns
@@ -414,12 +471,26 @@ def chains_to_fits(
         for i, name in enumerate(param_names):
             table[_fits_col(name)] = array[:, i].astype(np.float64)
 
+        # loglikes = -log(posterior) (getdist convention); stored as its own
+        # column so fits_to_samples can round-trip weighting/best-fit lookups
+        # without needing the raw chain.
+        if getattr(sample, "loglikes", None) is not None:
+            table["loglike"] = np.asarray(sample.loglikes, dtype=np.float64)
+        if getattr(sample, "weights", None) is not None and not np.allclose(sample.weights, 1.0):
+            table["weight"] = np.asarray(sample.weights, dtype=np.float64)
+
         # ── Header metadata ───────────────────────────────────────────────────
         table.meta["LABEL"]    = label
         table.meta["N_SAMP"]   = len(array)
         table.meta["N_PAR"]    = len(param_names)
         if src_path is not None:
             table.meta["SRC_PATH"] = str(src_path)
+        n_walkers = getattr(sample, "_n_walkers", None)
+        if n_walkers:
+            # Row order is preserved exactly as loaded (walker-interleaved
+            # per step), so this is enough to reshape back to
+            # (n_steps, n_walkers, n_params) later -- see fits_to_walker_chain.
+            table.meta["NWALKERS"] = n_walkers
 
         # Raw parameter names + fiducial values, stored as single delimited
         # strings. FITS header keywords are capped at 8 chars and forced
@@ -441,7 +512,7 @@ def chains_to_fits(
 
 def fits_to_samples(
     fits_paths:  list[str | Path],
-    burn_fraction: float = 0.0,
+    burn_fraction: float = 0.15,
 ) -> list[MCSamples]:
     """
     Reload chains previously saved by chains_to_fits() back into MCSamples.
@@ -457,8 +528,17 @@ def fits_to_samples(
     """
     samples_list = []
     for fp in fits_paths:
-        table  = Table.read(str(fp))
-        array  = np.column_stack([table[col].data for col in table.colnames])
+        table = Table.read(str(fp))
+
+        # "loglike"/"weight" are stored as their own columns (see
+        # chains_to_fits), not as sampled parameters -- pull them out before
+        # building the params array.
+        extra_cols = {c for c in ("loglike", "weight") if c in table.colnames}
+        param_cols = [c for c in table.colnames if c not in extra_cols]
+
+        array = np.column_stack([table[col].data for col in param_cols])
+        loglikes = np.asarray(table["loglike"].data, dtype=np.float64) if "loglike" in extra_cols else None
+        weights  = np.asarray(table["weight"].data, dtype=np.float64) if "weight" in extra_cols else None
 
         if "RAWNAMES" in table.meta:
             # Current format: names round-tripped exactly, no collisions.
@@ -467,7 +547,7 @@ def fits_to_samples(
             # Old-format file (saved before this fix): per-column RAW_<col>
             # keys collide for params sharing an 8-char prefix, so this is
             # best-effort only -- falls back to the plain column name.
-            names = [table.meta.get(f"RAW_{col}"[:8], col) for col in table.colnames]
+            names = [table.meta.get(f"RAW_{col}"[:8], col) for col in param_cols]
 
         label  = table.meta.get("LABEL", Path(fp).stem)
 
@@ -475,15 +555,80 @@ def fits_to_samples(
             samples  = array,
             names    = names,
             labels   = names,
+            loglikes = loglikes,
+            weights  = weights,
             settings = GETDIST_SETTINGS,
         )
         if burn_fraction > 0:
             sample.removeBurn(burn_fraction)
 
-        print(f"  Loaded {len(sample.samples):,} samples ({label})  ← {fp}")
+        extras_note = " + loglike" if loglikes is not None else ""
+        extras_note += " + weight" if weights is not None else ""
+        print(f"  Loaded {len(sample.samples):,} samples{extras_note} ({label})  ← {fp}")
         samples_list.append(sample)
 
     return samples_list
+
+
+def fits_to_walker_chain(
+    fits_path: "str | Path",
+    burn_fraction: float = 0.15,
+) -> "tuple[np.ndarray, np.ndarray | None, list[str]]":
+    """Reload a chain saved by chains_to_fits() reshaped back to
+    (n_steps, n_walkers, n_params), for autocorrelation-time diagnostics
+    that need the per-walker/per-step structure a flat MCSamples (see
+    fits_to_samples) does not preserve.
+
+    chains_to_fits saves the FULL chain (burn_fraction=0.0 by default) --
+    burn-in is applied here instead, at load time. Because the array is
+    already reshaped to (n_steps, n_walkers, n_params) before the cut is
+    made, slicing along axis 0 is inherently walker-aligned (unlike an
+    arbitrary row-fraction cut on the flat file).
+
+    Requires the file to carry the NWALKERS header key -- only present for
+    emcee-sampled chains saved after chains_to_fits started tracking it. If
+    missing, either regenerate via save_chains.py or fall back to the raw
+    chain file for this diagnostic.
+
+    Returns
+    -------
+    chain    : (n_steps, n_walkers, n_params) array, burn-trimmed, in
+               original step order.
+    loglikes : (n_steps, n_walkers) array, burn-trimmed, or None if not saved.
+    param_names : raw (LaTeX) parameter names, matching chain's last axis.
+    """
+    table = Table.read(str(fits_path))
+    if "NWALKERS" not in table.meta:
+        raise ValueError(
+            f"{fits_path} has no NWALKERS header -- either it predates "
+            "chains_to_fits tracking the walker count, or was not sampled "
+            "with emcee. Regenerate via save_chains.py, or use the raw "
+            "chain file for this diagnostic instead."
+        )
+    n_walkers = int(table.meta["NWALKERS"])
+    param_names = table.meta["RAWNAMES"].split("|")
+    # Param columns were written first, in RAWNAMES order (see chains_to_fits);
+    # loglike/weight (if present) were appended after.
+    col_names = [c for c in table.colnames if c not in ("loglike", "weight")]
+    array = np.column_stack([table[c].data for c in col_names]).astype(np.float64)
+
+    n_total = len(array)
+    if n_total % n_walkers != 0:
+        raise ValueError(f"{fits_path}: {n_total} rows not divisible by NWALKERS={n_walkers}")
+    n_steps = n_total // n_walkers
+    chain = array.reshape(n_steps, n_walkers, len(param_names))
+
+    loglikes = None
+    if "loglike" in table.colnames:
+        loglikes = np.asarray(table["loglike"].data, dtype=np.float64).reshape(n_steps, n_walkers)
+
+    burn_steps = int(burn_fraction * n_steps)
+    chain = chain[burn_steps:]
+    if loglikes is not None:
+        loglikes = loglikes[burn_steps:]
+
+    return chain, loglikes, param_names
+
 
 
 def plot_box_triangle(
