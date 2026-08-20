@@ -120,6 +120,29 @@ After generating the necessary files, run the pipeline with ceci, e.g.:
 ceci examples/cosmodc2_remapper/baseline/run_in2p3_mor
 ```
 
+### Downloading example data
+
+Large chains, sacc files, and (for capish) mock realizations are not
+committed to git -- the notebooks under `examples/cosmodc2_redmapper/` and
+`examples/capish_simulation/` load them from `CLPipe/data/`, hosted on the
+NERSC Science Gateway portal:
+
+https://portal.nersc.gov/cfs/lsst/clpipe/data/
+
+Download the whole tree into the right place with:
+
+```bash
+wget -r -np -nH --cut-dirs=3 -R "index.html*" \
+  https://portal.nersc.gov/cfs/lsst/clpipe/data/ \
+  -P CLPipe/
+```
+
+This lands files at `CLPipe/data/cosmodc2_redmapper/{chains,sacc}/` and
+`CLPipe/data/capish_simulation/{chains,*.sacc,data_generation/mocks_seeds}/`,
+matching the relative paths the notebooks expect. See
+[`data/README.md`](data/README.md) for what is hosted there and how to
+refresh it.
+
 ## Testing
 
 Tests live under `tests/` and run via `pytest`, split into two tiers:
