@@ -1,9 +1,5 @@
-"""Standalone reproduction of analysis_summary.ipynb cells 2 + 12: builds the
-mean data vector and its realization-scatter covariance from the 1000 capish
+"""mean data vector and its realization-scatter covariance from the 1000 capish
 mock seed realizations, and saves mock_DC2like_cluster_sacc_mean.sacc.
-
-Companion to regen_crow_sacc.py (which saves the crow theory prediction as
-its own sacc file). Run this whenever the underlying mock seeds change.
 """
 import glob
 import numpy as np

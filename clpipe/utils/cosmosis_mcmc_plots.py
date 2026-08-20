@@ -492,12 +492,7 @@ def chains_to_fits(
             # (n_steps, n_walkers, n_params) later -- see fits_to_walker_chain.
             table.meta["NWALKERS"] = n_walkers
 
-        # Raw parameter names + fiducial values, stored as single delimited
-        # strings. FITS header keywords are capped at 8 chars and forced
-        # uppercase, so per-column keys like "RAW_<col>"[:8] collide for any
-        # params sharing an 8-char prefix (e.g. sigma_8/sigma_0/sigma_m/
-        # sigma_z all truncate to "RAW_SIGM") -- only the last one written
-        # would survive. A single delimited string sidesteps that entirely.
+
         table.meta["RAWNAMES"] = "|".join(param_names)
         table.meta["FIDVALS"]  = "|".join(repr(fiducial_values[n]) for n in param_names)
 

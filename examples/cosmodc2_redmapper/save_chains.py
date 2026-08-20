@@ -2,22 +2,6 @@
 """Regenerate every ./chains/*.fits snapshot used by plot_samples.ipynb,
 summary_plot_best_fits.ipynb, and cov_matrices.ipynb from the raw cosmosis
 chain files.
-
-Run this whenever the underlying raw chains change (e.g. after a resume=T
-extension). It's a plain script, not a notebook, so it can be run directly
-or via sbatch without needing a Jupyter kernel:
-
-    python save_chains.py
-
-Each saved .fits carries the sampled parameters plus a "loglike" column
-(-log(posterior), from the chain's "post"/"like" column) so downstream code
-can do best-fit / weighting without needing the raw chain again.
-
-Saves the FULL chain (burn_fraction=0.0) -- no burn-in is removed here.
-Every consumer applies its own trim at load time instead: fits_to_samples()
-and fits_to_walker_chain() both default to burn_fraction=0.15. Do not compute
-statistics (plots, best-fit, autocorrelation, ...) directly off these files
-without going through one of those two loaders.
 """
 import sys
 
