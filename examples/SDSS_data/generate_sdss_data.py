@@ -53,7 +53,7 @@ def generate_SDSSCL_sacc_file() -> Any:
 
     for i, richness_bin in enumerate(zip(richness_edges[:-1], richness_edges[1:])):
         lower, upper = richness_bin
-        bin_richness_label = f"rich_{i}"
+        bin_richness_label = f"bin_rich_{i}"
         s_count.add_tracer("bin_richness", bin_richness_label, lower, upper)
         bin_richness_labels.append(bin_richness_label)
 
