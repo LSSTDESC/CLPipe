@@ -7,6 +7,9 @@ Repository dedicated to the Cluster Working Group of the DESC-LSST collaboration
 To run the examples, there is no need to create new Conda environments — shared
 environments are already available on both IN2P3 and NERSC.
 
+For the time being, there are two distinct Conda environments, because some Python packages required for Firecrow are incompatible with those required for TXPipe and TJPCov.
+
+
 Two environments are provided:
 
 - **Firecrown** — for MCMC inference
@@ -32,9 +35,37 @@ conda activate /sps/lsst/groups/clusters/cl_pipeline_project/conda_envs/txpipe_c
 conda activate /global/cfs/projectdirs/lsst/groups/CL/cl_pipeline_project/conda_envs/txpipe_clp
 ```
 
-### Local Installation
+### Standalone Local Installation
 
-To reproduce these environments locally:
+If you want to install the package directly from this repository, use pip with the
+base dependencies or any of the optional dependency groups defined in
+`pyproject.toml` under `project.optional-dependencies`.
+
+```bash
+git clone https://github.com/LSSTDESC/CLPipe.git
+cd CLPipe
+python -m pip install -U pip
+python -m pip install -e .
+```
+
+Optional extras are available for common use cases:
+
+```bash
+
+# Visualization dependencies
+python -m pip install -e ".[viz]"
+
+# Test dependencies
+python -m pip install -e ".[test]"
+
+# All optional dependencies bundled together
+python -m pip install -e ".[all]"
+```
+
+The `all` extra includes the `viz`, and `test` groups.
+
+
+### To reproduce the shared DESC environments locally instead:
 
 ```bash
 conda env update -f txpipe_environment.yml
