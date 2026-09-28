@@ -1,20 +1,57 @@
 [build-system]
-requires = ["setuptools>=61.0"]
+requires = ["setuptools>=61.0", "wheel"]
 build-backend = "setuptools.build_meta"
+
 [project]
-name = "CLPipe"
+name = "clpipe"
 version = "0.0.1"
 authors = [
-  { name="Eduardo Barroso, Sabine Elles", email="eduardojsbarroso@gmail.com" },
+  { name = "Eduardo Barroso, Sabine Elles", email = "eduardojsbarroso@gmail.com" },
 ]
-description = "CLPipe project"
+description = "Cluster Working Group pipeline for the DESC-LSST collaboration, built on ceci"
 readme = "README.md"
-requires-python = ">=3.12"
-[tool.setuptools.packages.find]
-where = ["."]
+license = { text = "BSD 3-Clause License" }
+requires-python = ">=3.10"
+classifiers = [
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: BSD License",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+]
+dependencies = [
+    "ceci",
+    "numpy",
+    "pyyaml",
+    "ruamel.yaml",
+    "sacc",
+]
+
+[project.optional-dependencies]
+
+viz = [
+    "matplotlib",
+    "astropy",
+    "getdist",
+    "ipython",
+]
+test = [
+    "pytest",
+    "pytest-cov",
+    "scipy",
+]
+all = [
+    "clpipe[viz,test]",
+]
+
 [project.urls]
 Homepage = "https://github.com/LSSTDESC/CLPipe"
 Issues = "https://github.com/LSSTDESC/CLPipe/issues"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["clpipe*"]
 
 [tool.pytest.ini_options]
 markers = [
