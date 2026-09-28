@@ -62,7 +62,7 @@ python -m pip install -e ".[test]"
 python -m pip install -e ".[all]"
 ```
 
-The `all` extra includes the `viz`, and `test` groups.
+The `all` extra includes the `viz` and `test` groups.
 
 
 ### To reproduce the shared DESC environments locally instead:
