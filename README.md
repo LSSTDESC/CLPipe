@@ -7,7 +7,7 @@ Repository dedicated to the Cluster Working Group of the DESC-LSST collaboration
 To run the examples, there is no need to create new Conda environments — shared
 environments are already available on both IN2P3 and NERSC.
 
-For the time being, there are two distinct Conda environments, because some Python packages required for Firecrow are incompatible with those required for TXPipe and TJPCov.
+For the time being, there are two distinct Conda environments, because some Python packages required for Firecrown are incompatible with those required for TXPipe and TJPCov.
 
 
 Two environments are provided:
