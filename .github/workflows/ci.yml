@@ -41,7 +41,7 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  CACHE_VERSION: 1
+  CACHE_VERSION: 2
   FAST_ENV_FILE: .github/ci/environment-fast.yml
   FULL_ENV_FILE: firecrown_environment.yml
 
