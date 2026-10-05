@@ -37,7 +37,7 @@ Note: Do not use pip directly to install the required packages, as not all depen
 
 ```bash
 conda env update -f txpipe_environment.yml
-conda activate txpipe_environment.yml
+conda activate txpipe_clp
 pip install .
 conda deactivate
 
