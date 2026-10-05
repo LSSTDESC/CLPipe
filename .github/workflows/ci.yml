@@ -41,7 +41,7 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  CACHE_VERSION: 2
+  CACHE_VERSION: 3
   FAST_ENV_FILE: .github/ci/environment-fast.yml
   FULL_ENV_FILE: firecrown_environment.yml
 
@@ -151,19 +151,7 @@ jobs:
           path: ${{ env.CONDA }}/envs
           key: ${{ steps.cache-full.outputs.cache-primary-key }}
 
-      - name: Cache cosmosis-standard-library build
-        # CSL is a compile step (CAMB, CLASS, etc.), not a conda/pip install,
-        # so it's not covered by the conda env cache above. It only needs
-        # rebuilding when the environment (and therefore cosmosis-core)
-        # changes, so key it on the same env file hash.
-        uses: actions/cache/restore@v4
-        id: cache-csl
-        with:
-          path: ${{ env.CONDA }}/envs/clpipe-full/cosmosis-standard-library
-          key: csl-${{ runner.os }}-py${{ matrix.python-version }}-${{ hashFiles(env.FULL_ENV_FILE) }}-v${{ env.CACHE_VERSION }}
-
       - name: Build cosmosis-standard-library
-        if: steps.cache-csl.outputs.cache-hit != 'true'
         # The generated cosmosis .ini references ${CSL_DIR}/utility/... and
         # ${CSL_DIR}/boltzmann/camb/... -- these come from the CSL, which
         # must be *built* (not just pip/conda-installed) and pointed at via
@@ -174,13 +162,6 @@ jobs:
           pushd ${CONDA_PREFIX}
           cosmosis-build-standard-library
           popd
-
-      - name: Save cosmosis-standard-library build
-        if: steps.cache-csl.outputs.cache-hit != 'true'
-        uses: actions/cache/save@v4
-        with:
-          path: ${{ env.CONDA }}/envs/clpipe-full/cosmosis-standard-library
-          key: ${{ steps.cache-csl.outputs.cache-primary-key }}
 
       - name: Set CSL_DIR
         shell: bash -l {0}
