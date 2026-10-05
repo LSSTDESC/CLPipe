@@ -37,15 +37,17 @@ Note: Do not use pip directly to install the required packages, as not all depen
 
 ```bash
 conda env update -f txpipe_environment.yml
-conda env update -f firecrown_environment.yml
+conda activate txpipe_environment.yml
+pip install .
+conda deactivate
 
+
+conda env update -f firecrown_environment.yml
 conda activate firecrown_clp
 pip install .
 conda env config vars set CSL_DIR=${CONDA_PREFIX}/cosmosis-standard-library
 conda deactivate
-
 conda activate firecrown_clp
-pip install .
 
 cd ${CONDA_PREFIX}
 source ${CONDA_PREFIX}/bin/cosmosis-configure
