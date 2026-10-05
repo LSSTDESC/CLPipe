@@ -6,7 +6,7 @@ build-backend = "setuptools.build_meta"
 name = "clpipe"
 version = "0.0.1"
 authors = [
-  { name = "Eduardo Barroso, Sabine Elles", email = "eduardojsbarroso@gmail.com" },
+  { name = "Eduardo Barroso, Sabine Elles, Jean Jacquemier", email = "eduardojsbarroso@gmail.com" },
 ]
 description = "Cluster Working Group pipeline for the DESC-LSST collaboration, built on ceci"
 readme = "README.md"
@@ -19,30 +19,6 @@ classifiers = [
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
-]
-dependencies = [
-    "ceci",
-    "numpy",
-    "pyyaml",
-    "ruamel.yaml",
-    "sacc",
-]
-
-[project.optional-dependencies]
-
-viz = [
-    "matplotlib",
-    "astropy",
-    "getdist",
-    "ipython",
-]
-test = [
-    "pytest",
-    "pytest-cov",
-    "scipy",
-]
-all = [
-    "clpipe[viz,test]",
 ]
 
 [project.urls]
