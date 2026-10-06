@@ -15,7 +15,6 @@ def _base_tjpcov_config(mor_parameters, **overrides):
     cfg = {
         "replace_tjpcov_cov": True,
         "sel_func": True,
-        "wazp_catalog": False,
         "diagonal_shear_covariance": True,
         "use_mpi": False,
         "do_xi": False,

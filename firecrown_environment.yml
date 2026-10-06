@@ -37,11 +37,6 @@ dependencies:
   - requests
   - sacc >= 2.1
   - scipy
-  - sphinx
-  - sphinx-autoapi
-  - sphinx-autodoc-typehints
-  - sphinx-rtd-theme
-  - sphinxcontrib-apidoc
   - tabulate
   - types-pyyaml
   - urllib3
@@ -55,6 +50,11 @@ dependencies:
   - types-requests
   - linkchecker
   - pytest-json-report
+  - sphinx
+  - sphinx-autoapi
+  - sphinx-autodoc-typehints
+  - sphinx-rtd-theme
+  - sphinxcontrib-apidoc
   - pip:
     - ceci >= 2.5
     - qp-prob
@@ -65,3 +65,4 @@ dependencies:
     - cobaya
     - isitgr
     - lsstdesc-crow
+    - sphinx_copybutton

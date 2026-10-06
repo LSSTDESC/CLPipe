@@ -213,8 +213,37 @@ jobs:
           # re-run here too -- cheap relative to the cosmosis run, and it
           # confirms they also pass with the full stack installed (not just
           # in the stripped-down fast env).
-          pytest tests -v
+          pytest tests -v --cov --cov-branch --cov-report=xml
+        env:
+          DISPLAY: test
 
+      - name: Upload coverage reports to Codecov
+        uses: codecov/codecov-action@v5
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+     
+
+  doc-valid:
+    name: Documentation Validation
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: conda-incubator/setup-miniconda@v3
+        with:
+          activate-environment: clpipe-full
+          environment-file: ${{ env.FULL_ENV_FILE }}
+      - uses: actions/cache@v4
+        with:
+          path: ${{ env.CONDA }}/pkgs
+          key: ${{ runner.os }}-conda-${{ env.CONDA_ENV_NAME }}
+      - name: Install the package
+        shell: bash -l {0}
+        run: |
+          pip install . -vv --no-deps --no-build-isolation
+      - name: Run the docs
+        shell: bash -l {0}
+        run: |
+          make -C docs/ html
   # ------------------------------------------------------------------ #
   # (Optional, disabled) lint. Enable in a separate formatting PR once  #
   # the pipeline files are actually black/isort-clean, so the           #
