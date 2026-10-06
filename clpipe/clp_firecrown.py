@@ -30,6 +30,7 @@ class CLPFirecrown(PipelineStage):
     """Firecrown pipeline stage for cluster cosmology analysis.
 
     This stage:
+
     - Builds a Firecrown likelihood from a SACC file
     - Generates the corresponding CosmoSIS configuration
     - Writes parameter files for sampling, defaulting the cosmological
@@ -38,6 +39,7 @@ class CLPFirecrown(PipelineStage):
       how a parameter gets sampled instead of held fixed
 
     Key configuration groups:
+    
     - Modeling options (hmf, mass range, redshift range)
     - Observable selection (cluster counts, shear)
     - Systematics (purity, completeness)
