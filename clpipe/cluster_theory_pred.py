@@ -159,6 +159,7 @@ def build_cluster_recipes_from_config(yml_file: str, sacc_file: str, set_params:
     Build cluster counts and (optionally) shear recipes from a YAML configuration and return theory/data vectors.
 
     This function:
+    
     - Loads configuration from `yml_file` (supports a top-level CLPFirecrown key).
     - Builds a pyccl halo mass function and pyccl Cosmology (via build_ccl_cosmology_from_config).
     - Constructs completeness/purity models if requested.

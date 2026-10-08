@@ -1,6 +1,31 @@
+<p align="center">
+<img src="./docs/source/clpipe_logo.png" alt="drawing" width="500" style="display: block; margin: auto; "/>
+</p>
+
+
+
 # CLPipe
 
-Repository dedicated to the Cluster Working Group of the DESC-LSST collaboration.
+[![Build and Check](https://github.com/LSSTDESC/CLPipe/actions/workflows/ci.yml/badge.svg)](https://github.com/LSSTDESC/CLPipe/actions/workflows/ci.yml)
+[![Coverage Status](https://codecov.io/gh/LSSTDESC/CLPipe/branch/main/graph/badge.svg)](https://codecov.io/gh/LSSTDESC/CLPipe)
+[![Documentation](https://github.com/LSSTDESC/CLPipe/actions/workflows/docs.yml/badge.svg)](https://lsstdesc.github.io/CLPipe/)
+
+CLPipe is the current implementation of the LSST DESC Cluster Pipeline,
+developed by the Cluster Working Group of the LSST Dark Energy Science
+Collaboration (DESC) to prepare cosmological analyses of galaxy clusters with
+Rubin LSST data. This repository does not reimplement the analysis tools: it
+runs the existing DESC tools together, in a single automated and reproducible
+chain, from galaxy and cluster catalogs to cosmological parameter constraints.
+TXPipe measures the cluster abundance and the stacked weak lensing profiles,
+TJPCov computes the theoretical covariance of the cluster counts, and
+Firecrown builds the likelihood, with theory predictions from CROW (built on
+CCL and CLMM), which CosmoSIS then samples.
+
+The stages are connected with [ceci](https://github.com/LSSTDESC/ceci) through
+their input and output files, so a stage can be replaced or extended without
+changing the rest of the pipeline. The current version runs a binned analysis
+of cluster counts and stacked weak lensing profiles, and has been validated on
+mock data and on the cosmoDC2 redMaPPer cluster catalog.
 
 ## Installation
 
@@ -19,7 +44,7 @@ Because some Python packages required for Firecrown are incompatible with those 
 # IN2P3
 conda activate /sps/lsst/groups/clusters/cl_pipeline_project/conda_envs/firecrown_clp
 
-# NERSC
+# NERSCstyle="display: block; margin: auto; "
 conda activate /global/cfs/projectdirs/lsst/groups/CL/cl_pipeline_project/conda_envs/firecrown_clp
 ```
 
@@ -92,7 +117,7 @@ Firecrown → inference inputs
 A separate job must be run to execute the final Firecrown inference — it is
 not launched automatically as part of the ceci pipeline.
 
-> **Note:** due to missing components in TJPCov, the Firecrown stage
+> **Note:** due to missing components in TJPCov, the CLPCovariance stage
 > currently performs additional computations to rescale the covariance
 > matrix.
 
