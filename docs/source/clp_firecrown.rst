@@ -43,13 +43,13 @@ are
 
 .. math::
 
-    N_{ij} = \Omega_S \int_{z_i}^{z_{i+1}} dz \int_{\ln\lambda_j}^{\ln\lambda_{j+1}} d\ln\lambda \int_{M_{\min}}^{M_{\max}} dM \,
-             \frac{d^2V}{dz \, d\Omega} \, \frac{dn}{dM}(M, z) \, P(\ln\lambda \mid M, z) \, \Phi(M, \lambda, z)
+    N_{ij} = {} & \Omega_S \int_{z_i}^{z_{i+1}} dz \int_{\ln\lambda_j}^{\ln\lambda_{j+1}} d\ln\lambda \int_{M_{\min}}^{M_{\max}} dM \\
+    & \times \frac{d^2V}{dz \, d\Omega} \, \frac{dn}{dM}(M, z) \, P(\ln\lambda \mid M, z) \, \Phi(M, \lambda, z)
 
 .. math::
 
-    \Theta_{ij}(R) = \frac{\Omega_S}{N_{ij}} \int_{z_i}^{z_{i+1}} dz \int_{\ln\lambda_j}^{\ln\lambda_{j+1}} d\ln\lambda \int_{M_{\min}}^{M_{\max}} dM \,
-             \frac{d^2V}{dz \, d\Omega} \, \frac{dn}{dM}(M, z) \, P(\ln\lambda \mid M, z) \, \Phi(M, \lambda, z) \, \Theta(R \mid M)
+    \Theta_{ij}(R) = {} & \frac{\Omega_S}{N_{ij}} \int_{z_i}^{z_{i+1}} dz \int_{\ln\lambda_j}^{\ln\lambda_{j+1}} d\ln\lambda \int_{M_{\min}}^{M_{\max}} dM \\
+    & \times \frac{d^2V}{dz \, d\Omega} \, \frac{dn}{dM}(M, z) \, P(\ln\lambda \mid M, z) \, \Phi(M, \lambda, z) \, \Theta(R \mid M)
 
 where:
 

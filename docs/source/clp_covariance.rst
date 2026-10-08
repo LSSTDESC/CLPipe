@@ -261,8 +261,8 @@ bin), CROW predicts the counts
 
 .. math::
 
-    N_a = \Omega_S \int_{z_a} dz \int_{\lambda_a} d\ln\lambda \int_{M_{\min}}^{M_{\max}} dM \,
-          \frac{d^2V}{dz \, d\Omega} \, \frac{dn}{dM}(M, z) \, P(\ln\lambda \mid M, z) \, c(M, z)
+    N_a = {} & \Omega_S \int_{z_a} dz \int_{\lambda_a} d\ln\lambda \int_{M_{\min}}^{M_{\max}} dM \\
+    & \times \frac{d^2V}{dz \, d\Omega} \, \frac{dn}{dM}(M, z) \, P(\ln\lambda \mid M, z) \, c(M, z)
 
 where :math:`\Omega_S` is the survey area in steradians (from the SACC
 survey tracer), :math:`dn/dM` is the Despali16 mass function, and
