@@ -7,7 +7,8 @@ Repository dedicated to the Cluster Working Group of the DESC-LSST collaboration
 To run the examples, there is no need to create new Conda environments — shared
 environments are already available on both IN2P3 and NERSC.
 
-Two environments are provided:
+
+Because some Python packages required for Firecrown are incompatible with those required for TXPipe and TJPCov, two environments are provided:
 
 - **Firecrown** — for MCMC inference
 - **TXPipe and TJPCov** — for data computation and covariance
@@ -31,16 +32,19 @@ conda activate /sps/lsst/groups/clusters/cl_pipeline_project/conda_envs/txpipe_c
 # NERSC
 conda activate /global/cfs/projectdirs/lsst/groups/CL/cl_pipeline_project/conda_envs/txpipe_clp
 ```
-
-### Local Installation
-
-To reproduce these environments locally:
+### To reproduce the shared DESC environments locally instead:
+Note: Do not use pip directly to install the required packages, as not all dependencies can be installed this way. Instead, use conda, then pip to install clpipe.
 
 ```bash
 conda env update -f txpipe_environment.yml
-conda env update -f firecrown_environment.yml
+conda activate txpipe_clp
+pip install .
+conda deactivate
 
+
+conda env update -f firecrown_environment.yml
 conda activate firecrown_clp
+pip install .
 conda env config vars set CSL_DIR=${CONDA_PREFIX}/cosmosis-standard-library
 conda deactivate
 conda activate firecrown_clp
@@ -119,6 +123,29 @@ After generating the necessary files, run the pipeline with ceci, e.g.:
 ```bash
 ceci examples/cosmodc2_remapper/baseline/run_in2p3_mor
 ```
+
+### Downloading example data
+
+Large chains, sacc files, and (for capish) mock realizations are not
+committed to git -- the notebooks under `examples/cosmodc2_redmapper/` and
+`examples/capish_simulation/` load them from `CLPipe/data/`, hosted on the
+NERSC Science Gateway portal:
+
+https://portal.nersc.gov/cfs/lsst/clpipe/data/
+
+Download the whole tree into the right place with:
+
+```bash
+wget -r -np -nH --cut-dirs=3 -R "index.html*" \
+  https://portal.nersc.gov/cfs/lsst/clpipe/data/ \
+  -P CLPipe/
+```
+
+This lands files at `CLPipe/data/cosmodc2_redmapper/{chains,sacc}/` and
+`CLPipe/data/capish_simulation/{chains,*.sacc,data_generation/mocks_seeds}/`,
+matching the relative paths the notebooks expect. See
+[`data/README.md`](data/README.md) for what is hosted there and how to
+refresh it.
 
 ## Testing
 
