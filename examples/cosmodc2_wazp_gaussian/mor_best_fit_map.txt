@@ -1,3 +1,0 @@
-# Best-fit MAP parameters
-# mu_0   mu_1   mu_2   sigma
-3.81669117e+00  6.01668396e-01  5.16133445e-01  3.99608623e-01
