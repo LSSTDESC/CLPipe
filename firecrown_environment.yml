@@ -7,7 +7,7 @@ dependencies:
   - black
   - charset-normalizer
   - compilers <= 1.8
-  - cosmosis >= 3.0
+  - cosmosis >= 3.0, < 3.26
   - cosmosis-build-standard-library
   - coverage
   - cython

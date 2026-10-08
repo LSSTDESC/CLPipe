@@ -69,7 +69,7 @@ jobs:
         uses: actions/cache/restore@v4
         id: cache-fast
         with:
-          path: ${{ env.CONDA }}/envs
+          path: ${{ env.CONDA }}/envs/clpipe-full
           key: conda-fast-${{ runner.os }}-py3.12-${{ hashFiles(env.FAST_ENV_FILE) }}-v${{ env.CACHE_VERSION }}
 
       - name: Update fast env if cache missed
@@ -137,7 +137,7 @@ jobs:
         uses: actions/cache/restore@v4
         id: cache-full
         with:
-          path: ${{ env.CONDA }}/envs
+          path: ${{ env.CONDA }}/envs/clpipe-full
           key: conda-full-${{ runner.os }}-py${{ matrix.python-version }}-${{ hashFiles(env.FULL_ENV_FILE) }}-v${{ env.CACHE_VERSION }}
 
       - name: Update full env if cache missed
@@ -148,7 +148,7 @@ jobs:
         if: steps.cache-full.outputs.cache-hit != 'true'
         uses: actions/cache/save@v4
         with:
-          path: ${{ env.CONDA }}/envs
+          path: ${{ env.CONDA }}/envs/clpipe-full
           key: ${{ steps.cache-full.outputs.cache-primary-key }}
 
       - name: Cache cosmosis-standard-library build
