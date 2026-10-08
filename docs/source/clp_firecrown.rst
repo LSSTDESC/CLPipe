@@ -2,235 +2,519 @@
 CLPFirecrown Configuration Options
 ==================================================
 
-This document describes the configuration options available for the
-CLPFirecrown stage. These options control the construction of the
-Firecrown likelihood, the cluster modeling assumptions, and the sampling
-configuration.
+This document describes the configuration options of the CLPFirecrown
+stage. The stage prepares a cluster cosmology inference with Firecrown and
+CosmoSIS: it writes the Firecrown likelihood and the CosmoSIS configuration
+files. It does not run the sampler. Sampling is a separate CosmoSIS run
+(see `Running the Inference`_).
 
-General Options
-===============
+Overview
+========
 
-``hmf`` (str, default: "bocquet16")
-    Halo Mass Function used in the analysis.
-    Supported values:
+CLPFirecrown runs the following steps:
 
-    * angulo12
-    * bocquet16
-    * bocquet20
-    * despali16
-    * jenkins01
-    * press74
-    * sheth99
-    * tinker08
-    * tinker10
-    * watson13
+1. Read the SACC file with covariance (from CLPCovariance) and the fiducial
+   cosmology.
+2. Write the Firecrown likelihood file. It builds CROW recipes for the
+   cluster counts and/or the stacked shear profile, from the modeling
+   options below.
+3. Write the CosmoSIS pipeline file: consistency, CAMB and the Firecrown
+   likelihood modules, plus the sampler settings.
+4. Write the CosmoSIS values file: cosmological and Firecrown parameters,
+   with their priors.
 
-        m_pivot (float)
-        z_pivot (float)
+Inputs and outputs:
 
-    Richness–mass relation parameters:
-        mu_p0, mu_p1, mu_p2
-        sigma_p0, sigma_p1, sigma_p2
+- ``clusters_sacc_file_cov`` (input): SACC data vector with covariance, from
+  CLPCovariance
+- ``fiducial_cosmology`` (input): fiducial cosmology, shared with TXPipe and
+  CLPCovariance
+- ``sampler_file`` (output): CosmoSIS pipeline file (``sampler_file.ini``)
+- ``likelihood_file`` (output): Firecrown likelihood (``likelihood_file.py``)
+- ``priors_file`` (output): CosmoSIS values file with priors
+  (``priors_file.ini``)
 
-    These control the mapping between halo mass and observable richness.
+Theory Model
+============
 
---------------------------------------------------
-Pipeline-Specific Options
---------------------------------------------------
+The predictions are computed with CROW. For a redshift bin :math:`i` and a
+richness bin :math:`j`, the number counts and the stacked lensing profile
+are
 
-replace_tjpcov_cov (bool, default: True)
-    If True, replaces the TJPCov cluster-count covariance with a
-    custom covariance computed using CROW.
+.. math::
 
-    This includes:
-        - Recomputing diagonal terms using theory predictions
-        - Combining SSC and Gaussian contributions
+    N_{ij} = \Omega_S \int_{z_i}^{z_{i+1}} dz \int_{\ln\lambda_j}^{\ln\lambda_{j+1}} d\ln\lambda \int_{M_{\min}}^{M_{\max}} dM \,
+             \frac{d^2V}{dz \, d\Omega} \, \frac{dn}{dM}(M, z) \, P(\ln\lambda \mid M, z) \, \Phi(M, \lambda, z)
 
-    WARNING:
-        This is a temporary workaround and should ideally be handled
-        directly inside TJPCov.
+.. math::
 
-wazp_catalog (bool, default: False)
-    Special handling for WaZP catalogs:
-        - Disables purity model
-        - Modifies completeness parameters
+    \Theta_{ij}(R) = \frac{\Omega_S}{N_{ij}} \int_{z_i}^{z_{i+1}} dz \int_{\ln\lambda_j}^{\ln\lambda_{j+1}} d\ln\lambda \int_{M_{\min}}^{M_{\max}} dM \,
+             \frac{d^2V}{dz \, d\Omega} \, \frac{dn}{dM}(M, z) \, P(\ln\lambda \mid M, z) \, \Phi(M, \lambda, z) \, \Theta(R \mid M)
 
---------------------------------------------------
-Internal Behavior
---------------------------------------------------
+where:
 
-1. Covariance Computation
--------------------------
+- :math:`\Omega_S`: survey area in steradians, from the SACC file
+- :math:`dn/dM`: halo mass function (``hmf``, ``mass_def``)
+- :math:`P(\ln\lambda \mid M, z)`: mass–richness relation (see below)
+- :math:`\Phi = c(M, z) / p(\lambda, z)`: selection function, from the
+  completeness :math:`c` and the purity :math:`p` (see below). Each is 1
+  when disabled.
+- :math:`\Theta(R \mid M)`: lensing profile of a halo of mass :math:`M`,
+  either the excess surface density :math:`\Delta\Sigma` or the reduced
+  tangential shear :math:`g_t`
 
-TJPCov computes covariance terms based on cov_type and writes:
-
-    clusters_sacc_file_cov.sacc
-
-Additional intermediate files may include:
-    - clusters_sacc_file_cov_SSC.sacc
-    - clusters_sacc_file_cov_gauss.sacc
-
-2. Mixed Data Handling
+Mass–richness relation
 ----------------------
 
-If the input SACC file contains multiple observables:
+The richness follows the
+`Murata et al. (2019) <https://doi.org/10.1093/pasj/psz092>`__ model. At
+fixed mass and redshift, :math:`\ln\lambda` is Gaussian. Its mean and its
+scatter are each linear in :math:`\ln M` and :math:`\ln(1+z)`, with 3
+parameters each:
 
-    - Cluster counts covariance is recomputed
-    - Other covariance blocks (e.g. lensing) are preserved
+.. math::
 
-This is handled by:
-    extract_data_covariance()
+    P(\ln\lambda \mid M, z) = \frac{1}{\sqrt{2\pi} \, \sigma_{\ln\lambda}} \exp\left[ -\frac{(\ln\lambda - \mu_{\ln\lambda})^2}{2 \sigma_{\ln\lambda}^2} \right]
 
-3. Custom Covariance Replacement
---------------------------------
+.. math::
 
-If replace_tjpcov_cov = True:
+    \mu_{\ln\lambda}(M, z) = \mu_0 + \mu_m \ln\frac{M}{M_{\rm piv}} + \mu_z \ln\frac{1+z}{1+z_{\rm piv}}
 
-    - The covariance is recomputed using CROW
-    - Theory predictions for counts are evaluated
-    - Covariance elements are replaced using:
+.. math::
 
-        C_ii = N_theory + SSC * (N_theory^2 / N_gauss^2)
-        C_ij = SSC_ij * (N_i * N_j) / (N_gauss_i * N_gauss_j)
+    \sigma_{\ln\lambda}(M, z) = \sigma_0 + \sigma_m \ln\frac{M}{M_{\rm piv}} + \sigma_z \ln\frac{1+z}{1+z_{\rm piv}}
 
-    This modifies only the cluster-count block.
+The pivots are set by ``pivot_mass`` and ``pivot_z``. The 6 parameters are
+Firecrown parameters (see `Firecrown Parameters`_).
 
---------------------------------------------------
+Completeness
+------------
+
+With ``use_completeness``, the
+`Aguena & Lima (2018) <https://arxiv.org/abs/1611.05468>`__ completeness
+model:
+
+.. math::
+
+    c(M, z) = \frac{\left(M / M_0(z)\right)^{n_c(z)}}{1 + \left(M / M_0(z)\right)^{n_c(z)}}
+
+.. math::
+
+    n_c(z) = a_n + b_n \, (1 + z), \qquad \log_{10} M_0(z) = a_{\rm piv} + b_{\rm piv} \, (1 + z)
+
+Purity
+------
+
+With ``use_purity``, the Aguena & Lima (2018) purity model, written in
+:math:`\ln\lambda`:
+
+.. math::
+
+    p(\lambda, z) = \frac{\left(\ln\lambda / \ln\lambda_0(z)\right)^{n_p(z)}}{1 + \left(\ln\lambda / \ln\lambda_0(z)\right)^{n_p(z)}}
+
+.. math::
+
+    n_p(z) = a_n + b_n \, (1 + z), \qquad \ln\lambda_0(z) = a_{\rm piv} + b_{\rm piv} \, (1 + z)
+
+Lensing profile
+---------------
+
+:math:`\Theta(R \mid M)` is computed with CLMM from an NFW profile (one-halo
+term). The concentration is the Firecrown parameter
+``cluster_theory_cluster_concentration``. A value below 1 uses the
+`Bhattacharya et al. (2013) <https://arxiv.org/abs/1112.5479>`__
+mass–concentration relation instead. The two-halo term and the boost-factor
+correction can be added (``two_halo_term``, ``boost_factor``).
+
+For the reduced shear :math:`g_t`, the lensing efficiency is averaged over
+the source redshift distribution (``beta_parameters``, ``use_beta_interp``).
+
+Likelihood
+----------
+
+The likelihood is a Gaussian (Firecrown ``ConstGaussian``) over all the
+selected statistics:
+
+- ``BinnedClusterNumberCounts``: counts :math:`N_{ij}` (and optionally the
+  mean log mass)
+- ``BinnedClusterShearProfile``: stacked :math:`\Delta\Sigma` or :math:`g_t`
+  profiles
+
+The covariance is read from the SACC file and held fixed during sampling.
+
+Modeling Options
+================
+
+``hmf`` (str, default: "despali16")
+    Halo mass function (case-insensitive). Supported values:
+
+    - angulo12
+    - bocquet16
+    - bocquet20
+    - despali16
+    - jenkins01
+    - press74
+    - sheth99
+    - tinker08
+    - tinker10
+    - watson13
+
+``mass_def`` (str, default: "200c")
+    Mass definition used by the halo mass function (e.g. ``"200c"``,
+    ``"500c"``).
+
+``min_mass``, ``max_mass`` (float, default: 12.0, 15.5)
+    Halo mass integration range, in :math:`\log_{10}(M / M_\odot)`.
+    Note: CLPCovariance uses linear masses for the same range.
+
+``min_z``, ``max_z`` (float, default: 0.2, 0.8)
+    True redshift integration range.
+
+``pivot_mass`` (float, default: 14.3)
+    Pivot mass of the mass–richness relation,
+    :math:`\log_{10}(M_{\rm piv} / M_\odot)`.
+
+``pivot_z`` (float, default: 0.5)
+    Pivot redshift of the mass–richness relation.
+
+``survey_name`` (str, default: "cosmodc2_redmapper")
+    Survey tracer name in the SACC file. Must match it.
+
+Observable Options
+==================
+
+``use_cluster_counts`` (bool, default: True)
+    Include the cluster number counts in the likelihood.
+
+``use_shear_profile`` (bool, default: False)
+    Include the stacked shear profiles in the likelihood.
+
+``is_deltasigma`` (bool, default: False)
+    Theory side: predict :math:`\Delta\Sigma` (True) or the reduced shear
+    :math:`g_t` (False).
+
+``use_mean_deltasigma`` (bool, default: False)
+    Data side: read :math:`\Delta\Sigma` (True) or the reduced shear
+    :math:`g_t` (False) from the SACC file. Set it to the same value as
+    ``is_deltasigma``.
+
+``use_mean_log_mass`` (bool, default: False)
+    Also use the mean log mass per bin, read from the SACC file.
+
+Selection Function Options
+==========================
+
+``use_completeness`` (bool, default: True)
+    Apply the completeness model :math:`c(M, z)` (see `Completeness`_).
+
+``use_purity`` (bool, default: True)
+    Apply the purity model :math:`p(\lambda, z)` (see `Purity`_).
+
+Lensing Options
+===============
+
+Only used when ``use_shear_profile`` is True.
+
+``two_halo_term`` (bool, default: False)
+    Add the two-halo term to the lensing profile.
+
+``boost_factor`` (bool, default: False)
+    Apply the boost-factor correction to the lensing profile.
+
+``set_concentration`` (bool)
+    Reserved for future use. The stage does not read it yet, so it
+    currently has no effect. The concentration is set with
+    ``cluster_theory_cluster_concentration`` in ``firecrown_parameters``.
+
+``use_beta_interp`` (bool, default: False)
+    Interpolate the mean lensing efficiency :math:`\langle\beta_s\rangle` in
+    redshift. Only used for the reduced shear (``is_deltasigma: False``).
+
+``beta_parameters`` (list of float, default: [10.0, 5.0])
+    Parameters of the mean lensing efficiency :math:`\langle\beta_s\rangle`,
+    passed to CROW as ``[z_inf, zmax]``: the redshift taken as infinity, and
+    the maximum source redshift. Only used for the reduced shear
+    (``is_deltasigma: False``).
+
+    The first value (``z_inf``, 10 by default) is also always used as the
+    maximum redshift of CAMB (``zmax`` in the ``[camb]`` section of
+    ``sampler_file.ini``), even without shear profiles.
+
+Integration Options
+===================
+
+``use_grid`` (bool, default: True)
+    If True, use ``GridBinnedClusterRecipe``: integrals on precomputed
+    grids, about 100 times faster, recommended for inference.
+    If False, use ``ExactBinnedClusterRecipe`` (direct integration with
+    NumCosmo), slower, useful to validate the grid results.
+
+``redshift_grid_size`` (int, default: 20)
+    Number of redshift grid points.
+
+``mass_grid_size`` (int, default: 60)
+    Number of mass grid points.
+
+``proxy_grid_size`` (int, default: 20)
+    Number of richness grid points.
+
+The grid sizes are only used when ``use_grid`` is True.
+
+Sampler Options
+===============
+
+``sampler`` (str, default: "emcee")
+    CosmoSIS sampler. Supported values:
+
+    - ``test``: a single likelihood evaluation, useful to check the setup
+    - ``metropolis``
+    - ``emcee``
+    - ``polychord``
+
+``emcee_walkers`` (int, default: 100)
+    Number of emcee walkers.
+
+``emcee_samples`` (int, default: 20000)
+    Number of emcee samples per walker.
+
+``emcee_nsteps`` (int, default: 20)
+    Number of emcee steps between chain outputs.
+
+``polychord_live_points`` (int, default: 500)
+    Number of PolyChord live points.
+
+``polychord_num_repeats`` (int, default: 30)
+    Number of PolyChord slice-sampling repeats.
+
+``polychord_tolerance`` (float, default: 0.05)
+    PolyChord evidence tolerance (stopping criterion).
+
+``polychord_feedback`` (int, default: 1)
+    PolyChord verbosity level.
+
+.. note::
+
+    The ``polychord_*`` options fill the ``[polychord]`` section of
+    ``sampler_file.ini`` (see the
+    `CosmoSIS PolyChord sampler <https://cosmosis.readthedocs.io/en/latest/reference/samplers/polychord.html>`__).
+
+``resume`` (bool, default: False)
+    If True, CosmoSIS appends to the existing chain instead of starting a
+    new one.
+
+``filename`` (str, optional, default: "output_rp/number_counts_samples.txt")
+    Path of the output chain file.
+
+Cosmological Parameters
+=======================
+
+``tau`` (float, default: 0.08)
+    Optical depth to reionization. It is a CAMB input, not part of the
+    fiducial cosmology file, so it is set here.
+
+``cosmological_parameters`` (dict, default: {})
+    Overrides on top of the fiducial cosmology. By default, every
+    cosmological parameter is fixed to its value in ``fiducial_cosmology``.
+    List a parameter here to sample it.
+
+    Parameter names (CosmoSIS naming): ``omega_c``, ``omega_b``, ``h0``,
+    ``n_s``, ``sigma_8``, ``omega_k``, ``w``, ``wa``, ``tau``.
+
+    A fixed entry (``sample: False``) must have the fiducial value, otherwise
+    the stage fails. To change the fiducial cosmology, edit the
+    ``fiducial_cosmology`` file instead, so that all stages use it.
+
+    Example:
+
+    .. code-block:: yaml
+
+        cosmological_parameters:
+            omega_c: {'sample': True, 'values': [0.10, 0.22, 0.5]}
+            sigma_8: {'sample': True, 'values': [0.5, 0.800, 1.1]}
+
+Firecrown Parameters
+====================
+
+``firecrown_parameters`` (dict, default: {})
+    Parameters of the CROW models, written to the
+    ``[firecrown_number_counts]`` section of the values file. Set all the
+    parameters of the models you enable, fixed or sampled.
+
+    **Mass–richness relation:**
+
+    - ``mass_distribution_mu0``, ``mass_distribution_mu1``,
+      ``mass_distribution_mu2``: :math:`\mu_0, \mu_m, \mu_z`
+    - ``mass_distribution_sigma0``, ``mass_distribution_sigma1``,
+      ``mass_distribution_sigma2``: :math:`\sigma_0, \sigma_m, \sigma_z`
+
+    **Completeness** (``use_completeness``):
+
+    - ``completeness_a_n``, ``completeness_b_n``: :math:`a_n, b_n`
+    - ``completeness_a_logm_piv``, ``completeness_b_logm_piv``:
+      :math:`a_{\rm piv}, b_{\rm piv}`
+    - CROW defaults (cosmoDC2 redMaPPer): 1.1321, 0.7751, 13.31, 0.2025
+
+    **Purity** (``use_purity``):
+
+    - ``purity_a_n``, ``purity_b_n``: :math:`a_n, b_n`
+    - ``purity_a_logm_piv``, ``purity_b_logm_piv``:
+      :math:`a_{\rm piv}, b_{\rm piv}`
+    - CROW defaults (cosmoDC2 redMaPPer): 1.9830, 0.8121, 2.2183, -0.6592
+
+    **Lensing profile** (``use_shear_profile``):
+
+    - ``cluster_theory_cluster_concentration``: halo concentration
+      (below 1: Bhattacharya et al. 2013 relation)
+
+Parameter Format
+================
+
+Entries in ``cosmological_parameters`` and ``firecrown_parameters`` use the
+same format:
+
+.. code-block:: yaml
+
+    # Sampled, with a flat prior between min and max:
+    name: {'sample': True, 'values': [min, start, max]}
+
+    # Fixed:
+    name: {'sample': False, 'values': value}
+
+Pipeline Configuration
+======================
+
+The stage is wired into a ceci pipeline file. This example comes from
+``examples/cosmodc2_redmapper/baseline/cosmodc2_redmapper_full_analysis/run_in2p3_both/Firecrown.yml``:
+
+.. code-block:: yaml
+
+    id: Firecrown
+    modules: clpipe
+    launcher:
+        name: mini
+        interval: 0.5
+    site:
+        name: local
+        max_threads: 4
+    stages:
+      - name: CLPFirecrown
+        module_name: clpipe.clp_firecrown
+        nprocess: 1
+    inputs:
+        fiducial_cosmology: /sps/lsst/groups/clusters/cl_pipeline_project/TXPipe_data/cosmodc2/fiducial_cosmology.yml
+        clusters_sacc_file_cov: ./outputs_both/clusters_sacc_file_cov.sacc
+    config: ./config_in2p3_both.yml
+    resume: false
+    output_dir: ./outputs_both
+    log_dir: ./logs_both
+
+The stage options go in the stage config file (``config:`` above), under a
+``CLPFirecrown`` block.
+
+Running the Inference
+=====================
+
+Generate the files with ceci, then run CosmoSIS from the output directory:
+
+.. code-block:: bash
+
+    ceci Firecrown.yml
+
+    cd ./outputs_both
+    cosmosis sampler_file.ini
+
+    # or, with MPI:
+    mpirun -n 30 cosmosis --mpi sampler_file.ini
+
+The generated files refer to each other, and to the SACC file, by file name
+only. Run CosmoSIS from the output directory, with the SACC file in it (this
+is the case when CLPCovariance writes to the same output directory).
+CosmoSIS also needs the ``CSL_DIR`` environment variable (see the
+installation instructions in the README).
+
 Known Limitations
---------------------------------------------------
-
-- replace_crow_counts() is a temporary workaround and should not exist
-  long-term (should be implemented in TJPCov directly).
-
-- Some configuration options (e.g. cosmology) are duplicated and not
-  consistently used across all steps.
-
-- Hardcoded choices exist:
-    - Mass function (Despali16)
-    - Grid sizes
-    - Recipe type (GridBinnedClusterRecipe)
-
-- No validation is performed on input configuration.
-
---------------------------------------------------
-Example Configuration
---------------------------------------------------
-
-CLPCovariance:
-    use_mpi: False
-    do_xi: False
-    cov_type: [ClusterCountsGaussian, ClusterCountsSSC]
-
-    cosmo: 'set'
-
-    parameters:
-        Omega_c: 0.22
-        Omega_b: 0.0448
-        h: 0.71
-        n_s: 0.963
-        sigma8: 0.8
-        w0: -1
-        wa: 0
-        transfer_function: 'boltzmann_camb'
-
-    photo-z:
-        sigma_0: 0.05
-
-    mor_parameters:
-        mass_func: 'Despali16'
-        mass_def: '200c'
-        halo_bias: 'Tinker10'
-        min_halo_mass: 1.0e12
-        max_halo_mass: 3.16e15
-
-        m_pivot: 14.3
-        z_pivot: 0.5
-
-        mu_p0: 3.3439
-        mu_p1: 0.9582
-        mu_p2: -0.0193
-        sigma_p0: 0.5623
-        sigma_p1: 0.0455
-        sigma_p2: -0.0445
-
---------------------------------------------------
-
-Notes:
-- Additional TJPCov parameters can be added depending on the covariance model.
-- Ensure consistency between SACC input data and MOR configuration.
-
-Firecrown Likelihood Parameters
-===============================
-
-``firecrown_parameters`` (dict)
-    Parameters controlling the cluster mass–observable relation and systematics.
-
-    Same format as cosmological parameters:
-
-    - sample: True/False
-    - values: [min, fiducial, max] or scalar
-
-    Typical parameters include:
-
-    - mass_distribution_mu*
-    - mass_distribution_sigma*
-    - completeness_*
-    - purity_*
-    - cluster_theory_cluster_concentration
-
-    Additional parameters can be added freely as long as they are
-    recognized by the Firecrown likelihood.
-
-Notes and Caveats
 =================
 
-- If both ``use_cluster_counts`` and ``use_shear_profile`` are True,
-  the likelihood combines both observables.
+- The ``test`` and ``metropolis`` sampler settings are fixed in the
+  generated file (``metropolis``: 1000 samples).
 
-- If only one is enabled, only that observable is used.
+- The covariance is held fixed during sampling.
 
-- Purity can be forcibly disabled internally when using shear-only
-  configurations.
+- Only the binned likelihood is supported.
 
-- The SACC file provided as input must match the ``survey_name``.
-
-- Grid-based recipes are recommended for performance unless exact
-  integration is required.
-
-- Some parameters (e.g. ``cluster_concentration``) are passed directly
-  to the underlying modeling code and are not validated here.
+- The names in ``firecrown_parameters`` are not validated by the stage.
 
 Example Configuration
 =====================
+
+This is the ``CLPFirecrown`` block of the baseline cosmoDC2 redMaPPer
+analysis (counts + stacked :math:`\Delta\Sigma`):
 
 .. code-block:: yaml
 
     CLPFirecrown:
         hmf: 'despali16'
+        mass_def: '200c'
         min_mass: 12.0
         max_mass: 15.5
         min_z: 0.2
         max_z: 0.8
-        mass_def: '200c'
-        use_shear_profile: True
-        use_completeness: True
-        use_purity: True
-        use_grid: True
-        is_deltasigma: True
-        use_beta_interp: False
-        beta_parameters: [10.0, 5.0]
         pivot_mass: 14.3
         pivot_z: 0.5
         survey_name: 'cosmodc2_redmapper'
+
+        use_cluster_counts: true
+        use_shear_profile: true
+        is_deltasigma: true
+        use_mean_deltasigma: true
+        use_mean_log_mass: false
+
+        use_completeness: true
+        use_purity: false
+
+        use_grid: true
+        use_beta_interp: false
+        beta_parameters: [10.0, 5.0]
+
         sampler: 'emcee'
-        use_cluster_counts: True
-        use_mean_log_mass: False
-        use_mean_deltasigma: True
-        emcee_walkers: 50
-        emcee_samples: 20000
+        emcee_walkers: 100
+        emcee_samples: 50000
         emcee_nsteps: 20
 
-        
+        cosmological_parameters:
+            omega_c: {'sample': true, 'values': [0.10, 0.22, 0.5]}
+            sigma_8: {'sample': true, 'values': [0.5, 0.800, 1.1]}
 
-Firecrown parameters can be extended as needed depending on the
-likelihood model.
+        firecrown_parameters:
+            mass_distribution_mu0: {'sample': true, 'values': [2.0, 3.3439, 10.0]}
+            mass_distribution_mu1: {'sample': true, 'values': [0.5, 0.958236982, 2.0]}
+            mass_distribution_mu2: {'sample': true, 'values': [-2.0, -0.0192802, 2.0]}
+            mass_distribution_sigma0: {'sample': true, 'values': [0.1, 0.562317194, 2.0]}
+            mass_distribution_sigma1: {'sample': true, 'values': [-0.6, 0.04552506, 0.3]}
+            mass_distribution_sigma2: {'sample': true, 'values': [-0.5, -0.0445, 2.0]}
+            completeness_a_n: {'sample': false, 'values': 1.1321}
+            completeness_b_n: {'sample': false, 'values': 0.7751}
+            completeness_a_logm_piv: {'sample': false, 'values': 13.31}
+            completeness_b_logm_piv: {'sample': false, 'values': 0.2025}
+            cluster_theory_cluster_concentration: {'sample': false, 'values': 3.8}
+
+References
+==========
+
+- Murata et al. (2019), mass–richness relation:
+  `doi:10.1093/pasj/psz092 <https://doi.org/10.1093/pasj/psz092>`__
+  (`arXiv:1904.07524 <https://arxiv.org/abs/1904.07524>`__)
+- Aguena & Lima (2018), completeness and purity:
+  `arXiv:1611.05468 <https://arxiv.org/abs/1611.05468>`__
+- Despali et al. (2016), halo mass function:
+  `arXiv:1507.05627 <https://arxiv.org/abs/1507.05627>`__
+- Navarro, Frenk & White (1997), NFW profile:
+  `arXiv:astro-ph/9611107 <https://arxiv.org/abs/astro-ph/9611107>`__
+- Bhattacharya et al. (2013), mass–concentration relation:
+  `arXiv:1112.5479 <https://arxiv.org/abs/1112.5479>`__
+- Zuntz et al. (2015), CosmoSIS:
+  `arXiv:1409.3409 <https://arxiv.org/abs/1409.3409>`__
+- Foreman-Mackey et al. (2013), emcee:
+  `arXiv:1202.3665 <https://arxiv.org/abs/1202.3665>`__
+- Firecrown: https://github.com/LSSTDESC/firecrown
+- CROW: https://github.com/LSSTDESC/crow
