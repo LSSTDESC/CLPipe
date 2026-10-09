@@ -3,7 +3,7 @@
 #SBATCH --partition=hpc,lsst
 #SBATCH --cpus-per-task=1
 #SBATCH --mem=80gb
-#SBATCH --ntasks=30
+#SBATCH --ntasks=51
 
 module load conda
 export HDF5_DO_MPI_FILE_SYNC=0
@@ -22,4 +22,8 @@ ceci TJPCov.yml
 ceci Firecrown.yml
 
 cd ./outputs_both
+export OMP_NUM_THREADS=1
+export OPENBLAS_NUM_THREADS=1
+export MKL_NUM_THREADS=1
+export NUMEXPR_NUM_THREADS=1
 mpirun -n ${SLURM_NTASKS} cosmosis --mpi sampler_file.ini
