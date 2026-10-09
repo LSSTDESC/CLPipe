@@ -50,8 +50,16 @@ import matplotlib.pyplot as plt
 import numpy as np
 from astropy.io import fits
 from astropy.table import Table
-from getdist import MCSamples, plots
-from IPython.display import Math, display
+
+# getdist switches matplotlib to Agg on import when it does not recognise the
+# notebook backend (older versions only look for 'ipykern'), which stops the
+# figures from showing inline. Keep the backend that was active before.
+_backend = mpl.get_backend()
+from getdist import MCSamples, plots  # noqa: E402
+if mpl.get_backend() != _backend:
+    plt.switch_backend(_backend)
+
+from IPython.display import Math, display  # noqa: E402
 
 try:
     from cosmosis.postprocessing.inputs import read_input as _cosmosis_read
