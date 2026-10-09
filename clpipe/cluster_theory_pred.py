@@ -1,376 +1,434 @@
-from crow import ClusterShearProfile, ClusterAbundance, kernel, mass_proxy
-from crow.properties import ClusterProperty
-from crow.recipes.binned_grid import GridBinnedClusterRecipe
-from crow.recipes.binned_exact import ExactBinnedClusterRecipe
-from crow import purity_models, completeness_models
+"""Cluster theory predictions from a CLPFirecrown configuration.
+
+This module builds the same Firecrown likelihood that ``CLPFirecrown``
+writes to its ``likelihood_file`` output (same halo mass function,
+mass-richness relation, selection function and CROW recipe), evaluates it
+at one point of parameter space and returns the predicted and measured
+data vectors. Use it to compare a configuration with the data at the
+fiducial point, at a chain best fit, or at any other set of parameters.
+
+The model options and their defaults come from ``CLPFirecrown`` itself, and
+the parameter values follow the same rules as the CosmoSIS values file the
+stage writes: the cosmology starts from the fiducial cosmology file, the
+``cosmological_parameters`` block (CosmoSIS names) overrides it, and every
+``firecrown_parameters`` entry takes its fixed value, or its starting value
+when sampled.
+
+The only difference with a CosmoSIS run is the linear power spectrum. Here
+CCL computes it (``boltzmann_camb``), while in the chain it comes from the
+CosmoSIS CAMB module, so the predictions can differ slightly from the
+chain's.
+"""
+
+import math
+import os
+from dataclasses import dataclass
+from typing import Any, Dict, Mapping, Optional, Tuple, Union
+
+import numpy as np
+import pyccl as ccl
 import sacc
 import yaml
-import pyccl as ccl
-import numpy as np
-from typing import Dict, Optional, Tuple, Any
-import logging
+from crow import ClusterAbundance, ClusterShearProfile, kernel, mass_proxy
+from crow import completeness_models, purity_models
+from crow.properties import ClusterProperty
+from crow.recipes.binned_exact import ExactBinnedClusterRecipe
+from crow.recipes.binned_grid import GridBinnedClusterRecipe
 from firecrown.likelihood import (
-    ConstGaussian,
-    BinnedClusterShearProfile,
     BinnedClusterNumberCounts,
-    Likelihood,
-    NamedParameters,
+    BinnedClusterShearProfile,
+    ConstGaussian,
 )
+from firecrown.modeling_tools import ModelingTools
+from firecrown.updatable import ParamsMap
+
+from .clp_firecrown import CLPFirecrown, _CCL_TO_COSMOSIS_COSMO_MAP
+
+_COSMOSIS_TO_CCL_COSMO_MAP = {v: k for k, v in _CCL_TO_COSMOSIS_COSMO_MAP.items()}
+
+_HALO_MASS_FUNCTIONS = {
+    "angulo12": ccl.halos.MassFuncAngulo12,
+    "bocquet16": ccl.halos.MassFuncBocquet16,
+    "bocquet20": ccl.halos.MassFuncBocquet20,
+    "despali16": ccl.halos.MassFuncDespali16,
+    "jenkins01": ccl.halos.MassFuncJenkins01,
+    "press74": ccl.halos.MassFuncPress74,
+    "sheth99": ccl.halos.MassFuncSheth99,
+    "tinker08": ccl.halos.MassFuncTinker08,
+    "tinker10": ccl.halos.MassFuncTinker10,
+    "watson13": ccl.halos.MassFuncWatson13,
+}
 
 
+@dataclass
+class BinnedPrediction:
+    """Prediction and measurement of one cluster statistic.
 
-logger = logging.getLogger(__name__)
+    All arrays follow the order of the statistic's data vector in the SACC
+    file, so ``theory[i]``, ``data[i]`` and ``z_edges[i]`` refer to the same
+    bin.
+
+    Attributes
+    ----------
+    theory
+        Predicted data vector.
+    data
+        Measured data vector.
+    covariance
+        Block of the SACC covariance for this statistic.
+    z_edges
+        Redshift bin edges, shape (n, 2).
+    proxy_edges
+        log10(richness) bin edges, shape (n, 2).
+    radius
+        Radius bin centers, shape (n,). None for the counts statistic.
+    sacc_indices
+        Indices of the data points in the SACC file.
+    """
+
+    theory: np.ndarray
+    data: np.ndarray
+    covariance: np.ndarray
+    z_edges: np.ndarray
+    proxy_edges: np.ndarray
+    radius: Optional[np.ndarray]
+    sacc_indices: np.ndarray
+
+    @property
+    def errors(self) -> np.ndarray:
+        """Square root of the covariance diagonal."""
+        return np.sqrt(np.diag(self.covariance))
 
 
-def _load_yaml_config(yml_file: str) -> Dict[str, Any]:
-    """Load YAML file and return the CLPFirecrown section.
+@dataclass
+class ClusterPredictions:
+    """Output of :func:`compute_cluster_predictions`.
+
+    Attributes
+    ----------
+    counts
+        Number counts (and mean log mass, if enabled). None when
+        ``use_cluster_counts`` is false.
+    shear
+        Stacked shear profile (DeltaSigma or reduced shear). None when
+        ``use_shear_profile`` is false.
+    chi2
+        Chi-squared of the whole likelihood, using the full SACC covariance.
+    parameters
+        Parameter values used for the prediction, with CCL names for the
+        cosmology and Firecrown names for the cluster parameters.
+    """
+
+    counts: Optional[BinnedPrediction]
+    shear: Optional[BinnedPrediction]
+    chi2: float
+    parameters: Dict[str, float]
+
+
+def _load_config(config: Union[str, os.PathLike, Mapping[str, Any]]) -> Dict[str, Any]:
+    """Return the CLPFirecrown options, filling missing ones with the stage defaults.
 
     Parameters
     ----------
-    yml_file
-        Path to YAML configuration file.
+    config
+        Path to a pipeline configuration file, or a dictionary. Both may hold
+        the options under a top-level ``CLPFirecrown`` key.
+    """
+    if isinstance(config, Mapping):
+        raw = dict(config)
+    else:
+        with open(config, "r") as f:
+            raw = yaml.safe_load(f)
+    section = raw.get("CLPFirecrown", raw)
+
+    cfg = {name: option.default for name, option in CLPFirecrown.config_options.items()}
+    cfg.update(section)
+    return cfg
+
+
+def _config_value(spec: Mapping[str, Any]) -> float:
+    """Value of a parameter block entry: the starting value when sampled, else the fixed value."""
+    values = spec["values"]
+    if spec.get("sample", False):
+        return float(values[1])
+    return float(values)
+
+
+def _halo_mass_function(cfg: Mapping[str, Any]):
+    """Return the pyccl halo mass function selected by ``hmf``."""
+    hmf_key = cfg["hmf"].lower()
+    try:
+        hmf_cls = _HALO_MASS_FUNCTIONS[hmf_key]
+    except KeyError:
+        raise ValueError(
+            f"Unknown halo mass function '{hmf_key}'. "
+            f"Available options are: {', '.join(sorted(_HALO_MASS_FUNCTIONS))}"
+        ) from None
+    return hmf_cls(mass_def=cfg["mass_def"])
+
+
+def _cluster_recipe(cfg: Mapping[str, Any], cluster_theory, is_reduced_shear: bool = False):
+    """Build the CROW recipe, as ``get_cluster_recipe`` in the generated likelihood file."""
+    completeness = completeness_models.CompletenessAguena16() if cfg["use_completeness"] else None
+    purity = purity_models.PurityAguena16LnProxy() if cfg["use_purity"] else None
+
+    if is_reduced_shear:
+        cluster_theory.set_beta_parameters(cfg["beta_parameters"][0], cfg["beta_parameters"][1])
+        if cfg["use_beta_interp"]:
+            cluster_theory.set_beta_s_interp(cfg["min_z"], cfg["max_z"])
+
+    common = dict(
+        cluster_theory=cluster_theory,
+        redshift_distribution=kernel.SpectroscopicRedshift(),
+        completeness=completeness,
+        purity=purity,
+        mass_interval=(cfg["min_mass"], cfg["max_mass"]),
+        true_z_interval=(cfg["min_z"], cfg["max_z"]),
+    )
+    if cfg["use_grid"]:
+        return GridBinnedClusterRecipe(
+            mass_distribution=mass_proxy.MurataUnbinned(
+                pivot_log_mass=cfg["pivot_mass"], pivot_redshift=cfg["pivot_z"]
+            ),
+            redshift_grid_size=cfg["redshift_grid_size"],
+            mass_grid_size=cfg["mass_grid_size"],
+            proxy_grid_size=cfg["proxy_grid_size"],
+            **common,
+        )
+    return ExactBinnedClusterRecipe(
+        mass_distribution=mass_proxy.MurataBinned(
+            pivot_log_mass=cfg["pivot_mass"], pivot_redshift=cfg["pivot_z"]
+        ),
+        **common,
+    )
+
+
+def build_cluster_likelihood(
+    config: Union[str, os.PathLike, Mapping[str, Any]], sacc_file: Union[str, os.PathLike]
+) -> ConstGaussian:
+    """Build the Firecrown likelihood that CLPFirecrown writes to ``likelihood_file``.
+
+    The likelihood has read the SACC file but has not been updated with
+    parameter values yet.
+
+    Parameters
+    ----------
+    config
+        Pipeline configuration file (or dictionary) with a ``CLPFirecrown``
+        section, as used to run the stage.
+    sacc_file
+        SACC file with the cluster data vector and covariance
+        (``clusters_sacc_file_cov``).
 
     Returns
     -------
-    dict
-        Parsed configuration dictionary (the CLPFirecrown sub-dictionary).
+    firecrown.likelihood.ConstGaussian
     """
-    with open(yml_file, "r") as f:
-        cfg = yaml.safe_load(f.read())
-    # support configs that wrap settings under a top-level "CLPFirecrown" key
-    return cfg.get("CLPFirecrown", cfg)
+    cfg = _load_config(config)
+    if not (cfg["use_cluster_counts"] or cfg["use_shear_profile"]):
+        raise ValueError("Set use_cluster_counts or use_shear_profile to build a likelihood.")
+
+    # Same flags CLPFirecrown passes to build_likelihood through the sampler
+    # file, where reduced shear is used whenever DeltaSigma is not.
+    average_on = ClusterProperty.NONE
+    if cfg["use_cluster_counts"]:
+        average_on |= ClusterProperty.COUNTS
+    if cfg["use_mean_log_mass"]:
+        average_on |= ClusterProperty.MASS
+    if cfg["use_mean_deltasigma"]:
+        average_on |= ClusterProperty.DELTASIGMA
+    else:
+        average_on |= ClusterProperty.SHEAR
+
+    # The placeholder cosmology is replaced by the ModelingTools one at
+    # every evaluation.
+    statistics = []
+    if cfg["use_cluster_counts"]:
+        abundance = ClusterAbundance(
+            halo_mass_function=_halo_mass_function(cfg),
+            cosmo=ccl.CosmologyVanillaLCDM(),
+        )
+        statistics.append(
+            BinnedClusterNumberCounts(average_on, cfg["survey_name"], _cluster_recipe(cfg, abundance))
+        )
+    if cfg["use_shear_profile"]:
+        shear_profile = ClusterShearProfile(
+            cosmo=ccl.CosmologyVanillaLCDM(),
+            halo_mass_function=_halo_mass_function(cfg),
+            cluster_concentration=None,
+            is_delta_sigma=cfg["is_deltasigma"],
+            use_beta_s_interp=cfg["use_beta_interp"],
+            two_halo_term=cfg["two_halo_term"],
+            boost_factor=cfg["boost_factor"],
+        )
+        recipe = _cluster_recipe(cfg, shear_profile, is_reduced_shear=not cfg["is_deltasigma"])
+        statistics.append(BinnedClusterShearProfile(average_on, cfg["survey_name"], recipe))
+
+    likelihood = ConstGaussian(statistics)
+    likelihood.read(sacc.Sacc.load_fits(str(sacc_file)))
+    return likelihood
 
 
-def _select_hmf(hmf_key: str, mass_def: str):
-    """Return a pyccl halo mass function instance from a key."""
-    hmf_dict = {
-        "angulo12": ccl.halos.MassFuncAngulo12,
-        "bocquet16": ccl.halos.MassFuncBocquet16,
-        "bocquet20": ccl.halos.MassFuncBocquet20,
-        "despali16": ccl.halos.MassFuncDespali16,
-        "jenkins01": ccl.halos.MassFuncJenkins01,
-        "press74": ccl.halos.MassFuncPress74,
-        "sheth99": ccl.halos.MassFuncSheth99,
-        "tinker08": ccl.halos.MassFuncTinker08,
-        "tinker10": ccl.halos.MassFuncTinker10,
-        "watson13": ccl.halos.MassFuncWatson13,
+def _resolve_parameters(
+    cfg: Mapping[str, Any],
+    fiducial_cosmology: Union[str, os.PathLike],
+    params: Optional[Mapping[str, float]],
+    cosmology_defaults: Mapping[str, float],
+    cluster_names,
+) -> Dict[str, float]:
+    """Parameter values for the prediction, as a flat dict for a Firecrown ParamsMap.
+
+    Cosmology: Firecrown defaults < fiducial cosmology file < config
+    ``cosmological_parameters`` < ``params``. Cluster parameters: config
+    ``firecrown_parameters`` < ``params``.
+    """
+    cosmology = dict(cosmology_defaults)
+    with open(fiducial_cosmology, "r") as f:
+        fiducial = yaml.safe_load(f)
+    cosmology.update({name: float(fiducial[name]) for name in cosmology if name in fiducial})
+
+    for name, spec in cfg["cosmological_parameters"].items():
+        if name == "tau":
+            # CAMB input only, it does not enter the cluster prediction
+            continue
+        if name not in _COSMOSIS_TO_CCL_COSMO_MAP:
+            raise ValueError(
+                f"cosmological_parameters['{name}'] has no CCL equivalent. "
+                f"Supported names are: {', '.join(sorted(_COSMOSIS_TO_CCL_COSMO_MAP))}"
+            )
+        ccl_name = _COSMOSIS_TO_CCL_COSMO_MAP[name]
+        value = _config_value(spec)
+        # Same check as CLPFirecrown.generate_cosmosis_parameters_file
+        if not spec.get("sample", False) and not math.isclose(value, cosmology[ccl_name], rel_tol=1e-6):
+            raise ValueError(
+                f"cosmological_parameters['{name}']={spec['values']} "
+                f"does not match fiducial value {cosmology[ccl_name]}"
+            )
+        cosmology[ccl_name] = value
+
+    cluster = {name: _config_value(spec) for name, spec in cfg["firecrown_parameters"].items()}
+
+    # Accept CosmoSIS names, optionally with their section prefix as in the
+    # chain outputs (e.g. cosmological_parameters--omega_c), CCL names and
+    # Firecrown names.
+    for name, value in (params or {}).items():
+        short = name.split("--")[-1]
+        if short in _COSMOSIS_TO_CCL_COSMO_MAP:
+            cosmology[_COSMOSIS_TO_CCL_COSMO_MAP[short]] = float(value)
+        elif short in cosmology:
+            cosmology[short] = float(value)
+        elif short in cluster_names:
+            cluster[short] = float(value)
+        elif short != "tau":
+            raise ValueError(f"Unknown parameter '{name}'")
+
+    missing = sorted(set(cluster_names) - set(cluster))
+    if missing:
+        raise ValueError(
+            f"No value for {', '.join(missing)}. Add them to firecrown_parameters "
+            "in the configuration or pass them in params."
+        )
+    return {
+        **{name: cosmology[name] for name in sorted(cosmology)},
+        **{name: cluster[name] for name in sorted(cluster_names)},
     }
-    hmf_cls = hmf_dict.get(hmf_key, ccl.halos.MassFuncBocquet16)
-    return hmf_cls(mass_def=mass_def)
 
 
-def _build_completeness_and_purity(use_completeness, use_purity):
-    """Create completeness and purity objects or None according to flags."""
-    completeness = completeness_models.CompletenessAguena16() if use_completeness else None
-    purity = purity_models.PurityAguena16() if use_purity else None
-    return completeness, purity
-
-
-def _populate_firecrown_parameters(yml_config: Dict[str, Any], set_params: Dict[str, Any]) -> Dict[str, Any]:
-    """Resolve Firecrown parameters: use sampled values from set_params when requested, otherwise fixed values."""
-    firecrown_parameters = {}
-    for param, value in yml_config.get("firecrown_parameters", {}).items():
-        if value.get("sample", False):
-            if param not in set_params:
-                raise ValueError(f"Sampled Firecrown parameter '{param}' not provided in set_params")
-            firecrown_parameters[param] = set_params[param]
-        else:
-            firecrown_parameters[param] = float(value.get("values"))
-    return firecrown_parameters
-
-
-def _build_mass_distribution(use_grid: bool, pivot_log_mass: float, pivot_z: float):
-    """Return the appropriate mass proxy object depending on whether grid evaluation is chosen."""
-    if use_grid:
-        return mass_proxy.MurataUnbinned(pivot_log_mass=pivot_log_mass, pivot_redshift=pivot_z)
-    return mass_proxy.MurataBinned(pivot_log_mass=pivot_log_mass, pivot_redshift=pivot_z)
-
-
-def _apply_mass_distribution_parameters(mass_distribution, set_params: Dict[str, Any], firecrown_parameters: Dict[str, Any]):
-    """Apply runtime-set attributes and firecrown parameters to the mass distribution object."""
-    # set any attributes passed in set_params that exist on the object
-    for k, v in set_params.items():
-        if hasattr(mass_distribution, k):
-            setattr(mass_distribution, k, v)
-
-    # Fill mass-distribution parameter dictionary with defaults from firecrown parameters
-    mass_distribution.parameters["mu0"] = firecrown_parameters.get("mass_distribution_mu0", 0.0)
-    mass_distribution.parameters["mu1"] = firecrown_parameters.get("mass_distribution_mu1", 0.0)
-    mass_distribution.parameters["mu2"] = firecrown_parameters.get("mass_distribution_mu2", 0.0)
-    mass_distribution.parameters["sigma0"] = firecrown_parameters.get("mass_distribution_sigma0", 0.2)
-    mass_distribution.parameters["sigma1"] = firecrown_parameters.get("mass_distribution_sigma1", 0.0)
-    mass_distribution.parameters["sigma2"] = firecrown_parameters.get("mass_distribution_sigma2", 0.0)
-
-
-def _apply_completeness_purity_parameters(completeness, purity, firecrown_parameters):
-    """Apply firecrown-tuned parameters to completeness and purity objects when present."""
-    if completeness is not None:
-        completeness.parameters["a_n"] = firecrown_parameters.get("completeness_a_n", completeness.parameters["a_n"])
-        completeness.parameters["b_n"] = firecrown_parameters.get("completeness_b_n", completeness.parameters["b_n"])
-        completeness.parameters["a_logm_piv"] = firecrown_parameters.get("completeness_a_logm_piv", completeness.parameters["a_logm_piv"])
-        completeness.parameters["b_logm_piv"] = firecrown_parameters.get("completeness_b_logm_piv", completeness.parameters["b_logm_piv"])
-    if purity is not None:
-        purity.parameters["a_n"] = firecrown_parameters.get("purity_a_n", purity.parameters["a_n"])
-        purity.parameters["b_n"] = firecrown_parameters.get("purity_b_n", purity.parameters["b_n"])
-        purity.parameters["a_logm_piv"] = firecrown_parameters.get("purity_a_logm_piv", purity.parameters["a_logm_piv"])
-        purity.parameters["b_logm_piv"] = firecrown_parameters.get("purity_b_logm_piv", purity.parameters["b_logm_piv"])
-
-
-def _make_binned_recipe(recipe_cls, cluster_theory, redshift_distribution, mass_distribution, completeness, purity,
-                       mass_interval, true_z_interval, redshift_grid_size, mass_grid_size, proxy_grid_size):
-    """Construct a binned cluster recipe (GridBinnedClusterRecipe or ExactBinnedClusterRecipe)."""
-    return recipe_cls(
-        cluster_theory=cluster_theory,
-        redshift_distribution=redshift_distribution,
-        mass_distribution=mass_distribution,
-        completeness=completeness,
-        purity=purity,
-        mass_interval=mass_interval,
-        true_z_interval=true_z_interval,
-        redshift_grid_size=redshift_grid_size,
-        mass_grid_size=mass_grid_size,
-        proxy_grid_size=proxy_grid_size,
+def _binned_prediction(likelihood: ConstGaussian, statistic) -> BinnedPrediction:
+    bins = statistic.bins
+    radius = None
+    if isinstance(statistic, BinnedClusterShearProfile):
+        radius = np.array([b.radius_center for b in bins])
+    return BinnedPrediction(
+        theory=np.asarray(statistic.get_theory_vector(), dtype=float),
+        data=np.asarray(statistic.get_data_vector(), dtype=float),
+        covariance=likelihood.get_cov(statistic),
+        z_edges=np.array([b.z_edges for b in bins]),
+        proxy_edges=np.array([b.mass_proxy_edges for b in bins]),
+        radius=radius,
+        sacc_indices=np.asarray(statistic.sacc_indices),
     )
 
 
-def _build_shear_profile(cosmo_ccl, hmf, cluster_concentration, is_deltasigma, use_beta_interp, beta_parameters, set_params):
-    """Construct and configure a ClusterShearProfile object."""
-    shear = ClusterShearProfile(
-        cosmo=cosmo_ccl,
-        halo_mass_function=hmf,
-        cluster_concentration=cluster_concentration,
-        is_delta_sigma=is_deltasigma,
-        use_beta_s_interp=use_beta_interp,
-    )
-    if "cluster_theory_cluster_concentration" in set_params:
-        shear.cluster_concentration = set_params["cluster_theory_cluster_concentration"]
-    if not is_deltasigma:
-        shear.set_beta_parameters(*beta_parameters)
-    if use_beta_interp:
-        # The actual min/max z values will be set later when recipe is built; keep API analogous to old code
-        # The calling code will set the interpolation domain on the recipe if needed.
-        pass
-    return shear
-
-
-def build_cluster_recipes_from_config(yml_file: str, sacc_file: str, set_params: Dict[str, Any], **kwargs
-                                     ) -> Tuple[np.ndarray, np.ndarray, Optional[np.ndarray], Optional[np.ndarray]]:
-    """
-    Build cluster counts and (optionally) shear recipes from a YAML configuration and return theory/data vectors.
-
-    This function:
-    - Loads configuration from `yml_file` (supports a top-level CLPFirecrown key).
-    - Builds a pyccl halo mass function and pyccl Cosmology (via build_ccl_cosmology_from_config).
-    - Constructs completeness/purity models if requested.
-    - Configures a mass-proxy model and fills its parameters from the `firecrown_parameters` block
-      or from runtime `set_params`.
-    - Builds either GridBinnedClusterRecipe or ExactBinnedClusterRecipe for counts and (optionally) for shear.
-    - Reads the SACC file and returns theory predictions and data vectors.
+def compute_cluster_predictions(
+    config: Union[str, os.PathLike, Mapping[str, Any]],
+    sacc_file: Union[str, os.PathLike],
+    fiducial_cosmology: Union[str, os.PathLike],
+    params: Optional[Mapping[str, float]] = None,
+) -> ClusterPredictions:
+    """Evaluate the CLPFirecrown likelihood at one point and return predictions and data.
 
     Parameters
     ----------
-    yml_file
-        Path to the YAML configuration.
+    config
+        Pipeline configuration file (or dictionary) with a ``CLPFirecrown``
+        section, as used to run the stage.
     sacc_file
-        Path to the SACC file used for data vectors.
-    set_params
-        Dictionary with runtime-supplied sampled parameters (e.g. from Firecrown/Cosmosis).
-    **kwargs
-        Currently unused; accepted for forward compatibility.
+        SACC file with the cluster data vector and covariance
+        (``clusters_sacc_file_cov``).
+    fiducial_cosmology
+        Fiducial cosmology YAML file (CCL names), the ``fiducial_cosmology``
+        input of the stage.
+    params
+        Values replacing the configuration ones, for instance a chain best
+        fit. Keys can be CosmoSIS names (``omega_c``, ``sigma_8``, also with
+        the ``cosmological_parameters--`` prefix of the chain files), CCL
+        names (``Omega_c``, ``sigma8``) or Firecrown names
+        (``mass_distribution_mu0``, also with the
+        ``firecrown_number_counts--`` prefix).
+
+    Returns
+    -------
+    ClusterPredictions
+    """
+    cfg = _load_config(config)
+    likelihood = build_cluster_likelihood(cfg, sacc_file)
+    tools = ModelingTools()
+
+    values = _resolve_parameters(
+        cfg,
+        fiducial_cosmology,
+        params,
+        tools.required_parameters().get_default_values(),
+        list(likelihood.required_parameters().get_params_names()),
+    )
+    params_map = ParamsMap(values)
+    likelihood.update(params_map)
+    tools.update(params_map)
+    tools.prepare()
+    chi2 = likelihood.compute_chisq(tools)
+
+    counts = shear = None
+    for guarded in likelihood.statistics:
+        statistic = guarded.statistic
+        if isinstance(statistic, BinnedClusterShearProfile):
+            shear = _binned_prediction(likelihood, statistic)
+        else:
+            counts = _binned_prediction(likelihood, statistic)
+    return ClusterPredictions(counts=counts, shear=shear, chi2=float(chi2), parameters=values)
+
+
+def build_cluster_recipes_from_config(
+    yml_file: Union[str, os.PathLike],
+    sacc_file: Union[str, os.PathLike],
+    set_params: Optional[Mapping[str, float]] = None,
+    *,
+    fiducial_cosmology: Union[str, os.PathLike],
+) -> Tuple[np.ndarray, np.ndarray, Optional[np.ndarray], Optional[np.ndarray]]:
+    """Return theory and data vectors as a tuple (older interface).
+
+    Same as :func:`compute_cluster_predictions` with ``params=set_params``.
 
     Returns
     -------
     tuple
-        (cluster_counts_theory, cluster_counts_data, cluster_shear_profile_theory, cluster_shear_data)
-        cluster_shear_profile_theory and cluster_shear_data can be None if shear is not requested.
+        (cluster_counts_theory, cluster_counts_data, cluster_shear_profile_theory, cluster_shear_data).
+        The counts or shear entries are None when that statistic is not used.
     """
-    # Load config and resolve parameters
-    yml_config = _load_yaml_config(yml_file)
-    logger.debug("Loaded YAML config: %s", yml_config)
-
-    # Basic parameters (with defaults)
-    hmf_key = yml_config.get("hmf", "bocquet16")
-    mass_def = str(yml_config.get("mass_def", "200c"))
-    min_mass = yml_config.get("min_mass", 13.0)
-    max_mass = yml_config.get("max_mass", 16.0)
-    min_z = yml_config.get("min_z", 0.2)
-    max_z = yml_config.get("max_z", 0.8)
-    pivot_log_mass = yml_config.get("pivot_mass", 14.3)
-    pivot_z = yml_config.get("pivot_z", 0.6)
-    survey_name = yml_config.get("survey_name", "numcosmo_simulated_redshift_richness")
-
-    use_shear_profile = yml_config.get("use_shear_profile", False)
-    use_completeness = yml_config.get("use_completeness", None)
-    use_purity = yml_config.get("use_purity", None)
-    use_grid = yml_config.get("use_grid", True)
-    is_deltasigma = yml_config.get("is_deltasigma", False)
-    use_beta_interp = yml_config.get("use_beta_interp", False)
-    redshift_grid_size = yml_config.get("redshift_grid_size", 20)
-    mass_grid_size = yml_config.get("mass_grid_size", 60)
-    proxy_grid_size = yml_config.get("proxy_grid_size", 20)
-    beta_parameters = yml_config.get("beta_parameters", (10.0, 5.0))
-
-    # Firecrown parameters (sampled or fixed)
-    firecrown_parameters = _populate_firecrown_parameters(yml_config, set_params)
-    cluster_concentration = firecrown_parameters.get("cluster_theory_cluster_concentration", None)
-
-    # Build HMF and Cosmology
-    hmf = _select_hmf(hmf_key, mass_def)
-    cosmo_ccl = build_ccl_cosmology_from_config(yml_config, set_params)
-
-    # completeness and purity
-    completeness, purity = _build_completeness_and_purity(use_completeness, use_purity)
-
-    # redshift distribution and abundance (cluster theory)
-    redshift_distribution = kernel.SpectroscopicRedshift()
-    abundance = ClusterAbundance(halo_mass_function=hmf, cosmo=cosmo_ccl)
-
-    # mass distribution / proxy
-    mass_distribution = _build_mass_distribution(use_grid, pivot_log_mass, pivot_z)
-    _apply_mass_distribution_parameters(mass_distribution, set_params, firecrown_parameters)
-
-    # apply completeness/purity firecrown parameters if present
-    _apply_completeness_purity_parameters(completeness, purity, firecrown_parameters)
-
-    # choose recipe class based on grid flag
-    recipe_cls = GridBinnedClusterRecipe if use_grid else ExactBinnedClusterRecipe
-
-    # build counts recipe
-    counts_recipe = _make_binned_recipe(
-        recipe_cls=recipe_cls,
-        cluster_theory=abundance,
-        redshift_distribution=redshift_distribution,
-        mass_distribution=mass_distribution,
-        completeness=completeness,
-        purity=purity,
-        mass_interval=(min_mass, max_mass),
-        true_z_interval=(min_z, max_z),
-        redshift_grid_size=redshift_grid_size,
-        mass_grid_size=mass_grid_size,
-        proxy_grid_size=proxy_grid_size,
-    )
-
-    # Build statistics object for counts and read SACC file
-    average_on = ClusterProperty.NONE
-    if yml_config.get("use_cluster_counts", True):
-        average_on |= ClusterProperty.COUNTS
-    if yml_config.get("use_mean_log_mass", False):
-        average_on |= ClusterProperty.MASS
-    if yml_config.get("use_mean_deltasigma", False):
-        average_on |= ClusterProperty.DELTASIGMA
-    if yml_config.get("use_mean_reduced_shear", False):
-        average_on |= ClusterProperty.SHEAR
-
-    counts_statistics = BinnedClusterNumberCounts(average_on, survey_name, counts_recipe)
-
-    sacc_obj = sacc.Sacc.load_fits(sacc_file)
-    counts_statistics.read(sacc_obj)
-
-    logger.debug("Mass distribution parameters: %s", counts_statistics.cluster_recipe.mass_distribution.parameters)
-    cluster_counts_theory = counts_statistics.get_binned_cluster_counts()
-    cluster_counts_data = counts_statistics.data_vector
-
-    # Optionally build shear recipe and statistics
-    cluster_shear_profile_theory = None
-    cluster_shear_data = None
-    if use_shear_profile:
-        shear = _build_shear_profile(
-            cosmo_ccl=cosmo_ccl,
-            hmf=hmf,
-            cluster_concentration=cluster_concentration,
-            is_deltasigma=is_deltasigma,
-            use_beta_interp=use_beta_interp,
-            beta_parameters=beta_parameters,
-            set_params=set_params,
-        )
-
-        # If beta interpolation requires z range, set after knowing config's min/max
-        if use_beta_interp and not is_deltasigma:
-            # ClusterShearProfile API (in previous code) had set_beta_s_interp(min_z, max_z)
-            try:
-                shear.set_beta_s_interp(min_z, max_z)
-            except Exception:
-                # fall back silently if the method is not available or has different signature
-                logger.debug("set_beta_s_interp not available or failed; continuing without setting interpolation domain.")
-
-        # build shear recipe (purity intentionally None for shear as before)
-        shear_recipe = _make_binned_recipe(
-            recipe_cls=recipe_cls,
-            cluster_theory=shear,
-            redshift_distribution=redshift_distribution,
-            mass_distribution=mass_distribution,
-            completeness=completeness,
-            purity=None,
-            mass_interval=(min_mass, max_mass),
-            true_z_interval=(min_z, max_z),
-            redshift_grid_size=redshift_grid_size,
-            mass_grid_size=mass_grid_size,
-            proxy_grid_size=proxy_grid_size,
-        )
-
-        shear_statistics = BinnedClusterShearProfile(average_on, survey_name, shear_recipe)
-        shear_statistics.read(sacc_obj)
-        cluster_shear_profile_theory = shear_statistics.get_binned_cluster_property(average_on)
-        cluster_shear_data = shear_statistics.data_vector
-
-    return cluster_counts_theory, cluster_counts_data, cluster_shear_profile_theory, cluster_shear_data
-
-
-def build_ccl_cosmology_from_config(yml_config: Dict[str, Any], set_params: Optional[Dict[str, Any]] = None) -> ccl.Cosmology:
-    """
-    Build a pyccl.Cosmology using config values + runtime sampled parameters.
-
-    The configuration is expected to contain a "cosmological_parameters" block where each parameter is either
-    marked as sampled (sample: true) in which case the value must be present in set_params, or fixed with a
-    numeric "values" entry.
-
-    Parameters
-    ----------
-    yml_config
-        Configuration dictionary (the CLPFirecrown section).
-    set_params
-        Runtime-supplied sampled parameters (may be None).
-
-    Returns
-    -------
-    pyccl.Cosmology
-    """
-    if set_params is None:
-        set_params = {}
-
-    # Start from a complete default cosmology
-    cosmo_params = DEFAULT_CCL_PARAMS.copy()
-
-    # Extract config cosmological parameters
-    cosmological_block = yml_config.get("cosmological_parameters", {})
-
-    for param, spec in cosmological_block.items():
-        if spec.get("sample", False):
-            # sampled → must come from set_params
-            if param not in set_params:
-                raise ValueError(f"Sampled cosmological parameter '{param}' not provided in set_params")
-            cosmo_params[param] = float(set_params[param])
-        else:
-            # fixed → take from config
-            cosmo_params[param] = float(spec["values"])
-
-    # Filter only parameters pyccl actually accepts
-    valid_ccl_params = {k: v for k, v in cosmo_params.items() if k in DEFAULT_CCL_PARAMS}
-
-    return ccl.Cosmology(**valid_ccl_params)
-
-
-# Default CCL parameter dictionary (used as base for building cosmologies)
-DEFAULT_CCL_PARAMS = dict(
-    Omega_c=0.2052,
-    Omega_b=0.0448,
-    h=0.71,
-    n_s=0.963,
-    sigma8=0.8,
-    Omega_k=0.0,
-    Neff=3.044,
-    m_nu=0.0,
-    w0=-1.0,
-    wa=0.0,
-    T_CMB=2.7255,
-)
+    pred = compute_cluster_predictions(yml_file, sacc_file, fiducial_cosmology, params=set_params)
+    counts_theory = counts_data = shear_theory = shear_data = None
+    if pred.counts is not None:
+        counts_theory, counts_data = pred.counts.theory, pred.counts.data
+    if pred.shear is not None:
+        shear_theory, shear_data = pred.shear.theory, pred.shear.data
+    return counts_theory, counts_data, shear_theory, shear_data
