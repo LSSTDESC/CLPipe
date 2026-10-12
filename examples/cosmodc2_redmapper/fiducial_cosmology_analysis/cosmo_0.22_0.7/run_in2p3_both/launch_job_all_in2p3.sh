@@ -22,4 +22,4 @@ ceci TJPCov.yml
 ceci Firecrown.yml
 
 cd ./outputs_both
-cosmosis sampler_file.ini
+mpirun -n ${SLURM_NTASKS} cosmosis --mpi sampler_file.ini
