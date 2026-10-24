@@ -16,6 +16,8 @@ modules: >
     rail.estimation.algos.bpz_lite
 python_paths: []
 stages:
+  - name: TXSourceTomography
+    threads_per_process: 4
   - name: TXSourceSelectorMetadetect
     nprocess: 30
   - name: BPZliteInformer

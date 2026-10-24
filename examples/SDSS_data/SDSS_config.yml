@@ -10,25 +10,20 @@ CLPFirecrown:
     pivot_z: 0.15
     survey_name: 'SDSSCluster_redshift_richness'
     sampler: 'emcee'
+    use_completeness: false
+    use_purity: false
     use_cluster_counts: True
     use_mean_log_mass: True
-    emcee_walkers: 20
-    emcee_samples: 4000
-    emcee_nsteps: 10
+    emcee_walkers: 100
+    emcee_samples: 50000
+    emcee_nsteps: 20
     cosmological_parameters:
         omega_c: {'sample': True, 'values': [0.1552, 0.2052, 0.3552]}
         sigma_8: {'sample': True, 'values': [0.7, 0.800, 0.9]}
-        omega_k: {'sample': False, 'values': 0.0}
-        omega_b: {'sample': False, 'values': 0.0448}
-        tau: {'sample': False, 'values': 0.08}
-        n_s: {'sample': False, 'values': 0.963}
-        h0: {'sample': False, 'values': 0.71}
-        w: {'sample': False, 'values': -1.0}
-        wa: {'sample': False, 'values': 0.0}
     firecrown_parameters:
-        mu_p0: {'sample': True, 'values': [2.0, 3.0, 4.0]}
-        mu_p1: {'sample': True, 'values': [0.4, 0.8, 1.2]}
-        mu_p2: {'sample': True, 'values': [-0.6, -0.3, 0.6]}
-        sigma_p0: {'sample': True, 'values': [0.02, 0.3, 0.6]}
-        sigma_p1: {'sample': True, 'values': [-0.1, -0.03, 0.1]}
-        sigma_p2: {'sample': True, 'values': [-0.1, 0.06, 0.1]}
+        mass_distribution_mu0: {'sample': True, 'values': [2.0, 3.0, 4.0]}
+        mass_distribution_mu1: {'sample': True, 'values': [0.4, 0.8, 1.2]}
+        mass_distribution_mu2: {'sample': True, 'values': [-0.6, -0.3, 0.6]}
+        mass_distribution_sigma0: {'sample': True, 'values': [0.02, 0.3, 0.6]}
+        mass_distribution_sigma1: {'sample': True, 'values': [-0.1, -0.03, 0.1]}
+        mass_distribution_sigma2: {'sample': True, 'values': [-0.1, 0.06, 0.1]}
