@@ -1,0 +1,49 @@
+id: TXPipe
+site:
+    name: local
+    max_threads: 4
+launcher:
+    name: mini
+    interval: 0.5
+modules: >
+    txpipe
+    txpipe.extensions
+    rail.estimation.algos.bpz_lite
+python_paths: []
+stages:
+  - name: TXSourceTomography
+    threads_per_process: 4
+  - name: TXSourceSelectorMetadetect
+    nprocess: 4
+  - name: BPZliteInformer
+    nprocess: 1
+    aliases:
+        input: spectroscopic_catalog
+        model: photoz_model
+  - name: BPZliteEstimator
+    nprocess: 4
+    aliases:
+        model: photoz_model
+        input: shear_catalog
+        output: source_photoz_pdfs
+  - name: CLClusterBinningRedshiftRichness
+    nprocess: 1
+  - name: CLClusterShearCatalogs
+    nprocess: 4
+  - name: CLClusterEnsembleProfiles
+    nprocess: 4
+  - name: CLClusterSACC
+    nprocess: 1
+    aliases:
+        cluster_profiles: cluster_profiles
+output_dir: ./outputs_txpipe
+log_dir: ./logs
+config: ./config_in2p3.yml
+inputs:
+    shear_catalog: /sps/lsst/groups/clusters/cl_pipeline_project/TXPipe_data/example/inputs/metadetect_shear_catalog.hdf5
+    fiducial_cosmology: ../../../data/fiducial_cosmology_cosmodc2.yml
+    spectroscopic_catalog: 
+        /sps/lsst/groups/clusters/cl_pipeline_project/TXPipe_data/example/inputs/mock_spectroscopic_catalog.hdf5
+    cluster_catalog: /sps/lsst/groups/clusters/cl_pipeline_project/TXPipe_data/example/inputs/cluster_catalog.hdf5
+resume: true
+pipeline_log: ./logs/log_txpipe.txt

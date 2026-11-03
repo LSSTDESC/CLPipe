@@ -42,10 +42,10 @@ Because some Python packages required for Firecrown are incompatible with those 
 
 ```bash
 # IN2P3
-conda activate /sps/lsst/groups/clusters/cl_pipeline_project/conda_envs/firecrown_clp
+conda activate /sps/lsst/groups/clusters/cl_pipeline_project/conda_envs/firecrown_developer_clp
 
-# NERSCstyle="display: block; margin: auto; "
-conda activate /global/cfs/projectdirs/lsst/groups/CL/cl_pipeline_project/conda_envs/firecrown_clp
+# NERSC
+conda activate /global/cfs/projectdirs/lsst/groups/CL/cl_pipeline_project/conda_envs/firecrown_developer_clp
 ```
 
 ### TXPipe and TJPCov
@@ -136,17 +136,25 @@ This is mainly useful for debugging a single stage in isolation.
 
 The `examples` directory contains sample pipeline executions:
 
-- `examples/cosmodc2_remapper` — multiple example analyses
-- `examples/cosmodc_halos` — a manually constructed pipeline, useful as a
-  reference if you'd rather not use the template
+- `examples/cosmodc2_redmapper` — the cosmoDC2 redMaPPer analyses
+- `examples/cosmoDC2-1deg2` — a full TXPipe to CosmoSIS run on the 1 deg²
+  TXPipe example data
+- `examples/cosmodc2_halos` — cluster counts from cosmoDC2 halos, a manually
+  constructed pipeline, useful as a reference if you'd rather not use the
+  template
+- `examples/capish_simulation` — cluster counts and stacked ΔΣ profiles
+  from the mean of capish mock realizations
 - `examples/template` — scripts to generate the pipeline and stage
   configuration files (currently built for CosmoDC2; support for other
   analyses is under construction)
 
-After generating the necessary files, run the pipeline with ceci, e.g.:
+Each run directory has one ceci file per step it runs (`TXPipe.yml`,
+`TJPCov.yml`, `Firecrown.yml`), one stage configuration file and a job script
+that runs them in order, e.g.:
 
 ```bash
-ceci examples/cosmodc2_remapper/baseline/run_in2p3_mor
+cd examples/cosmodc2_redmapper/baseline/cosmodc2_redmapper_full_analysis/run_in2p3_mor
+sbatch launch_job_all_in2p3.sh
 ```
 
 ### Downloading example data
@@ -166,7 +174,8 @@ wget -r -np -nH --cut-dirs=3 -R "index.html*" \
   -P CLPipe/
 ```
 
-This lands files at `CLPipe/data/cosmodc2_redmapper/{chains,sacc}/` and
+This lands files at `CLPipe/data/fiducial_cosmology_cosmodc2.yml`,
+`CLPipe/data/cosmodc2_redmapper/{chains,sacc}/` and
 `CLPipe/data/capish_simulation/{chains,*.sacc,data_generation/mocks_seeds}/`,
 matching the relative paths the notebooks expect. See
 [`data/README.md`](data/README.md) for what is hosted there and how to

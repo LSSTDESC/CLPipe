@@ -69,12 +69,19 @@ jobs:
         uses: actions/cache/restore@v4
         id: cache-fast
         with:
-          path: ${{ env.CONDA }}/envs/clpipe-full
+          path: ${{ env.CONDA }}/envs/clpipe-fast
           key: conda-fast-${{ runner.os }}-py3.12-${{ hashFiles(env.FAST_ENV_FILE) }}-v${{ env.CACHE_VERSION }}
 
       - name: Update fast env if cache missed
         if: steps.cache-fast.outputs.cache-hit != 'true'
         run: conda env update -n clpipe-fast -f ${{ env.FAST_ENV_FILE }}
+
+      - name: Save fast conda env
+        if: steps.cache-fast.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: ${{ env.CONDA }}/envs/clpipe-fast
+          key: ${{ steps.cache-fast.outputs.cache-primary-key }}
 
       - name: Install CLPipe (no deps)
         shell: bash -l {0}

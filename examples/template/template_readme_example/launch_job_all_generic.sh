@@ -1,18 +1,24 @@
 #!/usr/bin/bash
 $BATCH_ALL
 
-module load conda
-conda activate $CONDA_DIRECTORY/conda_envs/txpipe_clp
+$CONDA_SETUP
 export HDF5_DO_MPI_FILE_SYNC=0
-export PYTHONPATH=$CONDA_DIRECTORY/TXPipe:$PYTHONPATH
-export PYTHONPATH=../../:$PYTHONPATH
+conda activate $TXPIPE_ENV
+# Use the CLPipe checkout this run directory lives in
+export PYTHONPATH=$(cd ../../.. && pwd):$TXPIPE_DIRECTORY:$PYTHONPATH
 
-cd $COMPUTINGDIR
 ceci TXPipe.yml
-ceci TJPCov.yml
+
 conda deactivate
-conda activate $CONDA_DIRECTORY/conda_envs/firecrown_developer_clp
-export PYTHONPATH=../../:$PYTHONPATH
+conda activate $FIRECROWN_ENV
+
+ceci TJPCov.yml
 ceci Firecrown.yml
+
 cd $OUTPUTDIR
-cosmosis sampler_file.ini
+export OMP_NUM_THREADS=1
+export OPENBLAS_NUM_THREADS=1
+export MKL_NUM_THREADS=1
+export NUMEXPR_NUM_THREADS=1
+
+$COSMOSIS_COMMAND
