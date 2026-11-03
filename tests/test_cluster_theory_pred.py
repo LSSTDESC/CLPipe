@@ -84,7 +84,7 @@ def test_unknown_parameter_raises(full_stack, tmp_path, mock_fiducial_cosmology,
     sampler_file = _generate_files(
         tmp_path, mock_cluster_sacc_dense, mock_fiducial_cosmology, _base_firecrown_config()
     )
-    with pytest.raises(ValueError, match="'not_a_parameter' is not in the values file"):
+    with pytest.raises(ValueError, match="'not_a_parameter' does not match exactly one entry"):
         compute_cluster_predictions(sampler_file, params={"not_a_parameter": 1.0})
-    with pytest.raises(ValueError, match="'firecrown_number_counts--omega_c' is not in the values file"):
+    with pytest.raises(ValueError, match="'firecrown_number_counts--omega_c' does not match exactly one entry"):
         compute_cluster_predictions(sampler_file, params={"firecrown_number_counts--omega_c": 0.3})

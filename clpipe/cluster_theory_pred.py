@@ -25,26 +25,7 @@ from typing import Dict, Mapping, Optional, Tuple, Union
 import numpy as np
 from firecrown.connector.mapping import MappingCosmoSIS
 from firecrown.likelihood import BinnedClusterShearProfile, NamedParameters, load_likelihood
-from firecrown.modeling_tools import CCLCreationMode
 from firecrown.updatable import ParamsMap
-
-# Filled in by the CosmoSIS consistency module during a chain, but read by
-# MappingCosmoSIS and not written to the values file by CLPFirecrown.
-_COSMOSIS_DEFAULTS = {"omega_nu": 0.0}
-
-
-def _ini_value(raw: str):
-    """Convert a CosmoSIS ini entry to bool, int, float or str."""
-    if raw.upper() in ("T", "TRUE", "Y", "YES"):
-        return True
-    if raw.upper() in ("F", "FALSE", "N", "NO"):
-        return False
-    for cast in (int, float):
-        try:
-            return cast(raw)
-        except ValueError:
-            pass
-    return raw
 
 
 def _read_ini(path: Union[str, os.PathLike]) -> configparser.ConfigParser:
@@ -71,17 +52,12 @@ def _read_values(path: Union[str, os.PathLike]) -> Dict[str, Dict[str, float]]:
 def _apply_params(values: Dict[str, Dict[str, float]], params: Mapping[str, float]) -> None:
     """Replace entries of ``values`` with ``params``, keyed ``section--name`` or ``name``."""
     for key, value in params.items():
-        if "--" in key:
-            section, name = key.split("--", 1)
-            sections = [section] if name in values.get(section, {}) else []
-        else:
-            name = key
-            sections = [section for section in values if name in values[section]]
-        if len(sections) != 1:
-            known = [f"{section}--{name}" for section in values for name in values[section]]
-            reason = "is in several sections, add the section" if sections else "is not in the values file"
-            raise ValueError(f"Parameter '{key}' {reason}. Known parameters: {', '.join(known)}")
-        values[sections[0]][name] = float(value)
+        matches = [(section, name) for section in values for name in values[section]
+                   if key in (name, f"{section}--{name}")]
+        if len(matches) != 1:
+            raise ValueError(f"Parameter '{key}' does not match exactly one entry of the values file")
+        section, name = matches[0]
+        values[section][name] = float(value)
 
 
 def _binned_prediction(likelihood, statistic) -> Dict[str, Optional[np.ndarray]]:
@@ -89,8 +65,8 @@ def _binned_prediction(likelihood, statistic) -> Dict[str, Optional[np.ndarray]]
 
     Keys: ``theory``, ``data``, ``covariance`` (block of the SACC
     covariance), ``errors`` (square root of its diagonal), ``z_edges`` and
-    ``proxy_edges`` (log10 richness), both of shape (n, 2), ``radius``
-    (radius bin centers, None for counts) and ``sacc_indices``.
+    ``proxy_edges`` (log10 richness), both of shape (n, 2), and ``radius``
+    (radius bin centers, None for counts).
     """
     bins = statistic.bins
     radius = None
@@ -105,7 +81,6 @@ def _binned_prediction(likelihood, statistic) -> Dict[str, Optional[np.ndarray]]
         "z_edges": np.array([b.z_edges for b in bins]),
         "proxy_edges": np.array([b.mass_proxy_edges for b in bins]),
         "radius": radius,
-        "sacc_indices": np.asarray(statistic.sacc_indices),
     }
 
 
@@ -141,30 +116,27 @@ def compute_cluster_predictions(
     """
     run_dir = os.path.dirname(os.path.abspath(sampler_file))
     sampler = _read_ini(sampler_file)
-    if not sampler.has_section("firecrown_likelihood"):
-        raise ValueError(f"{sampler_file} has no [firecrown_likelihood] section")
-    module = sampler["firecrown_likelihood"]
+    module = sampler["firecrown_likelihood"]  # options of the Firecrown CosmoSIS module
 
     values = _read_values(os.path.join(run_dir, sampler["pipeline"]["values"]))
     _apply_params(values, params or {})
 
-    # Same steps as firecrown.connector.cosmosis.likelihood: build the
-    # likelihood with the module options, then collect the sampling sections
-    # and, unless the likelihood makes its own cosmology, the CosmoSIS
-    # cosmology translated to CCL names.
-    build_parameters = NamedParameters({name: _ini_value(raw) for name, raw in module.items()})
+    # From here on, the same steps as firecrown.connector.cosmosis.likelihood.
+    # The generated build_likelihood only reads the use_* flags, written TRUE or FALSE.
+    build_parameters = NamedParameters(
+        {name: {"TRUE": True, "FALSE": False}.get(raw.upper(), raw) for name, raw in module.items()}
+    )
     with contextlib.chdir(run_dir):  # the likelihood file opens the SACC file by basename
         likelihood, tools = load_likelihood(module["likelihood_source"], build_parameters)
 
+    # Cluster parameters from the sampling sections, cosmology translated to
+    # CCL names. omega_nu is set by the CosmoSIS consistency module in a chain.
     firecrown_params = {}
-    for section in module.get("sampling_parameters_sections", "").split():
+    for section in module["sampling_parameters_sections"].split():
         firecrown_params.update(values[section])
-    if tools.ccl_factory.creation_mode == CCLCreationMode.DEFAULT:
-        mapping = MappingCosmoSIS()
-        mapping.set_params_from_cosmosis(
-            NamedParameters({**_COSMOSIS_DEFAULTS, **values["cosmological_parameters"]})
-        )
-        firecrown_params.update(mapping.asdict())
+    mapping = MappingCosmoSIS()
+    mapping.set_params_from_cosmosis(NamedParameters({"omega_nu": 0.0, **values["cosmological_parameters"]}))
+    firecrown_params.update(mapping.asdict())
     params_map = ParamsMap(firecrown_params)
     params_map.use_lower_case_keys(True)
 
