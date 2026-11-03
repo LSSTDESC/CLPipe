@@ -1,58 +1,74 @@
 id: configure
 
+# Site where the run is configured: in2p3 or nersc
 site: in2p3
 
-# Directory that will contain all the files
-runidentifier: 20deg2
+# Run identifier, used in file and directory names
+runidentifier: 1deg2
 
 # Mandatory parameters - these are used to configure properly the computing directories
-#   - name :
-#   - templatedir :  directory that contains the template files
-#   - computingdir :  directory that contains all the templates files once they are fully configured
-#                             all the jobs and batch jobs are to be launched from this directory
-#                             all the output and log files are stored in this directory
-#            CAUTION : the name of this directory shoul dbe self-explanatory and define a different name for each run
+#   - name : directory where the configured files are written, relative to where
+#            configure_pipeline.py is launched. Jobs are submitted from this directory
+#            and the CLPipe outputs and logs are stored in it.
+#            CAUTION : use a different name for each run
+#   - templatedir : directory that contains the template files
+#   - computationdir : absolute path of the name directory
 
-name: cosmodc2_$SITE_$RUNIDENTIFIER
+name: ../cosmoDC2-$RUNIDENTIFIER/run_$SITE
 templatedir: template_readme_example
 computationdir: $PWD/$NAME
 
-# job concatenated yaml file  : file that contains all the yaml files defined as a yaml multiple docuemtn file
-jobconcatyamlfile: $TEMPLATEDIR/job_cosmoDC2-$RUNIDENTIFIER_concat.yml
+# Job concatenated yaml file : TXPipe, TJPCov and Firecrown ceci files in one
+# yaml multiple document file, split into TXPipe.yml, TJPCov.yml and Firecrown.yml
+jobconcatyamlfile: $TEMPLATEDIR/job_concat.yml
 
-# Survey data
-data: cosmodc2
-datadir: cosmodc2/$RUNIDENTIFIER
+# Survey data : the TXPipe example data (example-v10.tar.gz), see the README
+# of examples/cosmoDC2-1deg2 for the download
+datadir: example/inputs
+
+# Fiducial cosmology, downloaded into CLPipe/data (see the main README), relative to the computation directory
+fiducial_cosmology: ../../../data/fiducial_cosmology_cosmodc2.yml
 
 # Pipeline setup - the parameter value will be defined depending on the "site" parameter value
 txpipe_datadir:
     nersc: /global/cfs/projectdirs/lsst/groups/CL/cl_pipeline_project/TXPipe_data
     in2p3: /sps/lsst/groups/clusters/cl_pipeline_project/TXPipe_data
 
-txpipe_outputdir:
-    nersc: /global/cfs/projectdirs/lsst/groups/CL/cl_pipeline_project/TXPipe_data/cosmodc2/outputs-$RUNIDENTIFIER-CL
-    in2p3: /sps/lsst/groups/clusters/cl_pipeline_project/TXPipe_data/cosmodc2/outputs-$RUNIDENTIFIER-test-crow
-
 txpipe_directory:
     nersc: /global/cfs/projectdirs/lsst/groups/CL/cl_pipeline_project/TXPipe
     in2p3: /sps/lsst/groups/clusters/cl_pipeline_project/TXPipe
 
-outputdir : ./outputs
+txpipe_outputdir: ./outputs_txpipe
+outputdir: ./outputs
 logdir: ./logs
 
-config_file_generic: ./$TEMPLATEDIR/$DATA_config_$RUNIDENTIFIER.yml
+config_file_generic: ./$TEMPLATEDIR/cosmodc2_config_$RUNIDENTIFIER.yml
 config_file: ./config_$SITE.yml
 
-# Conda package directory
-conda_directory:
-    nersc: /global/cfs/projectdirs/lsst/groups/CL/cl_pipeline_project
-    in2p3: /sps/lsst/groups/clusters/cl_pipeline_project
-    local: my_conda_directory
+# ceci site used by TXPipe
+txpipe_site:
+    nersc: nersc-interactive
+    in2p3: local
+
+# Conda setup and environments used by the job script
+conda_setup:
+    nersc: module load conda
+    in2p3: module load conda
+
+txpipe_env:
+    nersc: /global/cfs/projectdirs/lsst/groups/CL/cl_pipeline_project/conda_envs/txpipe_clp
+    in2p3: /sps/lsst/groups/clusters/cl_pipeline_project/conda_envs/txpipe_clp
+
+firecrown_env:
+    nersc: /global/cfs/projectdirs/lsst/groups/CL/cl_pipeline_project/conda_envs/firecrown_developer_clp
+    in2p3: /sps/lsst/groups/clusters/cl_pipeline_project/conda_envs/firecrown_developer_clp
+
+# CosmoSIS command, run from the output directory
+cosmosis_command:
+    nersc: srun -n ${SLURM_NTASKS} cosmosis --mpi sampler_file.ini
+    in2p3: mpirun -n ${SLURM_NTASKS} cosmosis --mpi sampler_file.ini
 
 # Batch parameters - see batch_param.yml file
 batch_id: cosmodc2-$RUNIDENTIFIER
 batch_param_file: ./$TEMPLATEDIR/batch_param.yml
-batch_files: 
-    nersc: ./$TEMPLATEDIR/launch_job_all_generic.sh
-    in2p3: ./$TEMPLATEDIR/launch_txpipe_generic.sh;./$TEMPLATEDIR/launch_job_all_generic.sh
-
+batch_files: ./$TEMPLATEDIR/launch_job_all_generic.sh

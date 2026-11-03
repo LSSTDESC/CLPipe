@@ -3,12 +3,20 @@
 #SBATCH --partition=hpc,lsst
 #SBATCH --cpus-per-task=1
 #SBATCH --mem=64gb
-#SBATCH --ntasks=30 
+#SBATCH --ntasks=30
+
 module load conda
-export HDF5_DO_MPI_FILE_SYNC=0
 conda activate /sps/lsst/groups/clusters/cl_pipeline_project/conda_envs/firecrown_developer_clp
-export PYTHONPATH=../../:$PYTHONPATH
+# Use the CLPipe checkout this example lives in
+export PYTHONPATH=$(cd ../.. && pwd):$PYTHONPATH
+
 ceci TJPCov.yml
 ceci Firecrown.yml
-cd outputs_both
-cosmosis sampler_file.ini
+
+cd ./outputs_both
+export OMP_NUM_THREADS=1
+export OPENBLAS_NUM_THREADS=1
+export MKL_NUM_THREADS=1
+export NUMEXPR_NUM_THREADS=1
+
+mpirun -n ${SLURM_NTASKS} cosmosis --mpi sampler_file.ini

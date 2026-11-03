@@ -1,59 +1,6 @@
-
-id : cosmodc2-20deg2
-
-# Batch parameters
-batch_txpipe: 
-    nersc: 
-    in2p3: --time=3:00:00;--partition=hpc,lsst;--ntasks=60;--cpus-per-task=1;--mem=128gb;--nodes=1
-batch_firecrown: 
-    nresc:
-    in2p3: --time=00:10:00;--partition=hpc,lsst;--ntasks=1;--cpus-per-task=1;--mem=64gb
-batch_all:
-    nersc: -A m1727;-C cpu;--qos=debug;--time=00:30:00;--nodes=1;--ntasks-per-node=32
-    in2p3: --time=1:00:00;--partition=hpc;--ntasks=30;--cpus-per-task=1;--mem=64gb
-
----
-
-id : cosmodc2-full
-
-# Batch parameters
-batch_txpipe: 
-    nersc: 
-    in2p3: --time=13:00:00;--partition=hpc,lsst;--ntasks=60;--cpus-per-task=1;--mem=400gb;--nodes=1
-batch_firecrown: 
-    nresc:
-    in2p3: --time=15:00:00;--partition=hpc,lsst;--cpus-per-task=1;--mem=64gb
-batch_all:
-    nersc: -A m1727;-C cpu;--qos=debug;--time=00:30:00;--nodes=1;--ntasks-per-node=32
-    in2p3: --time=10:00:00;--partition=hpc,lsst;--ntasks=60;--cpus-per-task=1;--mem=300gb
-
----
-
-id : cosmodc2_redmapper_full_analysis
+id : cosmodc2-1deg2
 
 # Batch parameters
 batch_all:
-    nersc: -A m1727;-C cpu;--qos=debug;--time=00:30:00;--nodes=1;--ntasks-per-node=32
-    in2p3: --time=15:00:00;--partition=hpc,lsst;--cpus-per-task=1;--mem=8gb;--ntasks=10 
-
----
-
-id : cosmodc2_redmapper_counts
-
-# Batch parameters
-batch_all:
-    nersc: -A m1727;-C cpu;--qos=debug;--time=00:30:00;--nodes=1;--ntasks-per-node=32
-    in2p3: --time=15:00:00;--partition=hpc,lsst;--cpus-per-task=1;--mem=64gb;--ntasks=10 
-
----
-
-id : cosmodc2_redmapper_lensing
-
-# Batch parameters
-batch_all:
-    nersc: -A m1727;-C cpu;--qos=debug;--time=00:30:00;--nodes=1;--ntasks-per-node=32
-    in2p3: --time=15:00:00;--partition=hpc,lsst;--cpus-per-task=1;--mem=64gb;--ntasks=10 
-batch_profiles:
-    nersc: -A m1727;-C cpu;--qos=debug;--time=00:30:00;--nodes=1;--ntasks-per-node=32
-    in2p3: --time=1:00:00;--partition=hpc,lsst;--cpus-per-task=1;--mem=64gb
-
+    nersc: -A m1727;-C cpu;--qos=regular;--time=04:00:00;--nodes=1;--ntasks-per-node=10
+    in2p3: --time=4:00:00;--partition=hpc,lsst;--ntasks=10;--cpus-per-task=1;--mem=16gb

@@ -1,0 +1,19 @@
+id: Firecrown
+modules: clpipe
+launcher:
+    name: mini
+    interval: 0.5
+site:
+    name: local
+    max_threads: 4
+stages:
+  - name: CLPFirecrown
+    module_name: clpipe.clp_firecrown
+    nprocess: 1
+inputs:
+    clusters_sacc_file_cov: ./outputs/clusters_sacc_file_cov.sacc
+    fiducial_cosmology: ../../../data/fiducial_cosmology_cosmodc2.yml
+config: ./config_nersc.yml
+resume: false
+output_dir: ./outputs
+log_dir: ./logs

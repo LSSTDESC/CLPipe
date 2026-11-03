@@ -16,6 +16,7 @@ NERSC Science Gateway portal, not committed to the repo.
 
 ```
 data/
+  fiducial_cosmology_cosmodc2.yml   cosmoDC2 fiducial cosmology (capish, halos and 1 deg2 examples)
   cosmodc2_redmapper/
     chains/    *.fits snapshots (see clpipe.utils.cosmosis_mcmc_plots.chains_to_fits)
     sacc/      *.sacc covariance files

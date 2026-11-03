@@ -10,5 +10,5 @@ dependencies:
   - pyyaml
   - pytest
   - pip:
-    - ceci
+    - ceci>=2.5
     - sacc
