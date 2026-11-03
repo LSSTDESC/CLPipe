@@ -1,63 +1,37 @@
-"""Cluster theory predictions from a CLPFirecrown configuration.
+"""Cluster theory predictions from the files written by CLPFirecrown.
 
-This module builds the same Firecrown likelihood that ``CLPFirecrown``
-writes to its ``likelihood_file`` output (same halo mass function,
-mass-richness relation, selection function and CROW recipe), evaluates it
-at one point of parameter space and returns the predicted and measured
-data vectors. Use it to compare a configuration with the data at the
-fiducial point, at a chain best fit, or at any other set of parameters.
+``CLPFirecrown`` writes a Firecrown likelihood (``likelihood_file.py``), a
+CosmoSIS values file (``priors_file.ini``) and a CosmoSIS ini file
+(``sampler_file.ini``) that ties them together. This module loads that
+likelihood, gives it parameter values the way the Firecrown CosmoSIS
+connector does during a chain, and evaluates it at one point of parameter
+space. Nothing about the model is rebuilt here, so the prediction follows
+any change in ``CLPFirecrown`` or Firecrown.
 
-The model options and their defaults come from ``CLPFirecrown`` itself, and
-the parameter values follow the same rules as the CosmoSIS values file the
-stage writes: the cosmology starts from the fiducial cosmology file, the
-``cosmological_parameters`` block (CosmoSIS names) overrides it, and every
-``firecrown_parameters`` entry takes its fixed value, or its starting value
-when sampled.
+Use it to compare the model with the data at the starting point of a chain,
+at a chain best fit, or at any other set of parameters.
 
-The only difference with a CosmoSIS run is the linear power spectrum. Here
-CCL computes it (``boltzmann_camb``), while in the chain it comes from the
-CosmoSIS CAMB module, so the predictions can differ slightly from the
-chain's.
+The only difference with a CosmoSIS run is the cosmology. Here CCL computes
+the power spectrum and distances itself (with CAMB), while in the chain they
+come from the CosmoSIS CAMB module, so the predictions can differ slightly
+from the chain's.
 """
 
-import math
+import configparser
+import contextlib
 import os
 from dataclasses import dataclass
-from typing import Any, Dict, Mapping, Optional, Tuple, Union
+from typing import Dict, Mapping, Optional, Union
 
 import numpy as np
-import pyccl as ccl
-import sacc
-import yaml
-from crow import ClusterAbundance, ClusterShearProfile, kernel, mass_proxy
-from crow import completeness_models, purity_models
-from crow.properties import ClusterProperty
-from crow.recipes.binned_exact import ExactBinnedClusterRecipe
-from crow.recipes.binned_grid import GridBinnedClusterRecipe
-from firecrown.likelihood import (
-    BinnedClusterNumberCounts,
-    BinnedClusterShearProfile,
-    ConstGaussian,
-)
-from firecrown.modeling_tools import ModelingTools
+from firecrown.connector.mapping import MappingCosmoSIS
+from firecrown.likelihood import BinnedClusterShearProfile, NamedParameters, load_likelihood
+from firecrown.modeling_tools import CCLCreationMode
 from firecrown.updatable import ParamsMap
 
-from .clp_firecrown import CLPFirecrown, _CCL_TO_COSMOSIS_COSMO_MAP
-
-_COSMOSIS_TO_CCL_COSMO_MAP = {v: k for k, v in _CCL_TO_COSMOSIS_COSMO_MAP.items()}
-
-_HALO_MASS_FUNCTIONS = {
-    "angulo12": ccl.halos.MassFuncAngulo12,
-    "bocquet16": ccl.halos.MassFuncBocquet16,
-    "bocquet20": ccl.halos.MassFuncBocquet20,
-    "despali16": ccl.halos.MassFuncDespali16,
-    "jenkins01": ccl.halos.MassFuncJenkins01,
-    "press74": ccl.halos.MassFuncPress74,
-    "sheth99": ccl.halos.MassFuncSheth99,
-    "tinker08": ccl.halos.MassFuncTinker08,
-    "tinker10": ccl.halos.MassFuncTinker10,
-    "watson13": ccl.halos.MassFuncWatson13,
-}
+# Filled in by the CosmoSIS consistency module during a chain, but read by
+# MappingCosmoSIS and not written to the values file by CLPFirecrown.
+_COSMOSIS_DEFAULTS = {"omega_nu": 0.0}
 
 
 @dataclass
@@ -107,16 +81,16 @@ class ClusterPredictions:
     Attributes
     ----------
     counts
-        Number counts (and mean log mass, if enabled). None when
-        ``use_cluster_counts`` is false.
+        Number counts (and mean log mass, if enabled). None when the
+        likelihood has no counts statistic.
     shear
-        Stacked shear profile (DeltaSigma or reduced shear). None when
-        ``use_shear_profile`` is false.
+        Stacked shear profile (DeltaSigma or reduced shear). None when the
+        likelihood has no shear statistic.
     chi2
         Chi-squared of the whole likelihood, using the full SACC covariance.
     parameters
-        Parameter values used for the prediction, with CCL names for the
-        cosmology and Firecrown names for the cluster parameters.
+        Values used for the prediction, keyed ``section--name`` as in the
+        CosmoSIS chain files.
     """
 
     counts: Optional[BinnedPrediction]
@@ -125,216 +99,58 @@ class ClusterPredictions:
     parameters: Dict[str, float]
 
 
-def _load_config(config: Union[str, os.PathLike, Mapping[str, Any]]) -> Dict[str, Any]:
-    """Return the CLPFirecrown options, filling missing ones with the stage defaults.
-
-    Parameters
-    ----------
-    config
-        Path to a pipeline configuration file, or a dictionary. Both may hold
-        the options under a top-level ``CLPFirecrown`` key.
-    """
-    if isinstance(config, Mapping):
-        raw = dict(config)
-    else:
-        with open(config, "r") as f:
-            raw = yaml.safe_load(f)
-    section = raw.get("CLPFirecrown", raw)
-
-    cfg = {name: option.default for name, option in CLPFirecrown.config_options.items()}
-    cfg.update(section)
-    return cfg
+def _ini_value(raw: str):
+    """Convert a CosmoSIS ini entry to bool, int, float or str."""
+    if raw.upper() in ("T", "TRUE", "Y", "YES"):
+        return True
+    if raw.upper() in ("F", "FALSE", "N", "NO"):
+        return False
+    for cast in (int, float):
+        try:
+            return cast(raw)
+        except ValueError:
+            pass
+    return raw
 
 
-def _config_value(spec: Mapping[str, Any]) -> float:
-    """Value of a parameter block entry: the starting value when sampled, else the fixed value."""
-    values = spec["values"]
-    if spec.get("sample", False):
-        return float(values[1])
-    return float(values)
+def _read_ini(path: Union[str, os.PathLike]) -> configparser.ConfigParser:
+    ini = configparser.ConfigParser(inline_comment_prefixes=(";", "#"), interpolation=None)
+    if not ini.read(path):
+        raise FileNotFoundError(path)
+    return ini
 
 
-def _halo_mass_function(cfg: Mapping[str, Any]):
-    """Return the pyccl halo mass function selected by ``hmf``."""
-    hmf_key = cfg["hmf"].lower()
-    try:
-        hmf_cls = _HALO_MASS_FUNCTIONS[hmf_key]
-    except KeyError:
-        raise ValueError(
-            f"Unknown halo mass function '{hmf_key}'. "
-            f"Available options are: {', '.join(sorted(_HALO_MASS_FUNCTIONS))}"
-        ) from None
-    return hmf_cls(mass_def=cfg["mass_def"])
+def _read_values(path: Union[str, os.PathLike]) -> Dict[str, Dict[str, float]]:
+    """Values file as {section: {name: value}}, with the starting value of sampled parameters."""
+    ini = _read_ini(path)
+    values = {}
+    for section in ini.sections():
+        values[section] = {}
+        for name, raw in ini[section].items():
+            fields = [float(field) for field in raw.split()]
+            if len(fields) not in (1, 3):
+                raise ValueError(f"Cannot read '{name} = {raw}' in [{section}] of {path}")
+            values[section][name] = fields[0] if len(fields) == 1 else fields[1]
+    return values
 
 
-def _cluster_recipe(cfg: Mapping[str, Any], cluster_theory, is_reduced_shear: bool = False):
-    """Build the CROW recipe, as ``get_cluster_recipe`` in the generated likelihood file."""
-    completeness = completeness_models.CompletenessAguena16() if cfg["use_completeness"] else None
-    purity = purity_models.PurityAguena16LnProxy() if cfg["use_purity"] else None
-
-    if is_reduced_shear:
-        cluster_theory.set_beta_parameters(cfg["beta_parameters"][0], cfg["beta_parameters"][1])
-        if cfg["use_beta_interp"]:
-            cluster_theory.set_beta_s_interp(cfg["min_z"], cfg["max_z"])
-
-    common = dict(
-        cluster_theory=cluster_theory,
-        redshift_distribution=kernel.SpectroscopicRedshift(),
-        completeness=completeness,
-        purity=purity,
-        mass_interval=(cfg["min_mass"], cfg["max_mass"]),
-        true_z_interval=(cfg["min_z"], cfg["max_z"]),
-    )
-    if cfg["use_grid"]:
-        return GridBinnedClusterRecipe(
-            mass_distribution=mass_proxy.MurataUnbinned(
-                pivot_log_mass=cfg["pivot_mass"], pivot_redshift=cfg["pivot_z"]
-            ),
-            redshift_grid_size=cfg["redshift_grid_size"],
-            mass_grid_size=cfg["mass_grid_size"],
-            proxy_grid_size=cfg["proxy_grid_size"],
-            **common,
-        )
-    return ExactBinnedClusterRecipe(
-        mass_distribution=mass_proxy.MurataBinned(
-            pivot_log_mass=cfg["pivot_mass"], pivot_redshift=cfg["pivot_z"]
-        ),
-        **common,
-    )
+def _apply_params(values: Dict[str, Dict[str, float]], params: Mapping[str, float]) -> None:
+    """Replace entries of ``values`` with ``params``, keyed ``section--name`` or ``name``."""
+    for key, value in params.items():
+        if "--" in key:
+            section, name = key.split("--", 1)
+            sections = [section] if name in values.get(section, {}) else []
+        else:
+            name = key
+            sections = [section for section in values if name in values[section]]
+        if len(sections) != 1:
+            known = [f"{section}--{name}" for section in values for name in values[section]]
+            reason = "is in several sections, add the section" if sections else "is not in the values file"
+            raise ValueError(f"Parameter '{key}' {reason}. Known parameters: {', '.join(known)}")
+        values[sections[0]][name] = float(value)
 
 
-def build_cluster_likelihood(
-    config: Union[str, os.PathLike, Mapping[str, Any]], sacc_file: Union[str, os.PathLike]
-) -> ConstGaussian:
-    """Build the Firecrown likelihood that CLPFirecrown writes to ``likelihood_file``.
-
-    The likelihood has read the SACC file but has not been updated with
-    parameter values yet.
-
-    Parameters
-    ----------
-    config
-        Pipeline configuration file (or dictionary) with a ``CLPFirecrown``
-        section, as used to run the stage.
-    sacc_file
-        SACC file with the cluster data vector and covariance
-        (``clusters_sacc_file_cov``).
-
-    Returns
-    -------
-    firecrown.likelihood.ConstGaussian
-    """
-    cfg = _load_config(config)
-    if not (cfg["use_cluster_counts"] or cfg["use_shear_profile"]):
-        raise ValueError("Set use_cluster_counts or use_shear_profile to build a likelihood.")
-
-    # Same flags CLPFirecrown passes to build_likelihood through the sampler
-    # file, where reduced shear is used whenever DeltaSigma is not.
-    average_on = ClusterProperty.NONE
-    if cfg["use_cluster_counts"]:
-        average_on |= ClusterProperty.COUNTS
-    if cfg["use_mean_log_mass"]:
-        average_on |= ClusterProperty.MASS
-    if cfg["use_mean_deltasigma"]:
-        average_on |= ClusterProperty.DELTASIGMA
-    else:
-        average_on |= ClusterProperty.SHEAR
-
-    # The placeholder cosmology is replaced by the ModelingTools one at
-    # every evaluation.
-    statistics = []
-    if cfg["use_cluster_counts"]:
-        abundance = ClusterAbundance(
-            halo_mass_function=_halo_mass_function(cfg),
-            cosmo=ccl.CosmologyVanillaLCDM(),
-        )
-        statistics.append(
-            BinnedClusterNumberCounts(average_on, cfg["survey_name"], _cluster_recipe(cfg, abundance))
-        )
-    if cfg["use_shear_profile"]:
-        shear_profile = ClusterShearProfile(
-            cosmo=ccl.CosmologyVanillaLCDM(),
-            halo_mass_function=_halo_mass_function(cfg),
-            cluster_concentration=None,
-            is_delta_sigma=cfg["is_deltasigma"],
-            use_beta_s_interp=cfg["use_beta_interp"],
-            two_halo_term=cfg["two_halo_term"],
-            boost_factor=cfg["boost_factor"],
-        )
-        recipe = _cluster_recipe(cfg, shear_profile, is_reduced_shear=not cfg["is_deltasigma"])
-        statistics.append(BinnedClusterShearProfile(average_on, cfg["survey_name"], recipe))
-
-    likelihood = ConstGaussian(statistics)
-    likelihood.read(sacc.Sacc.load_fits(str(sacc_file)))
-    return likelihood
-
-
-def _resolve_parameters(
-    cfg: Mapping[str, Any],
-    fiducial_cosmology: Union[str, os.PathLike],
-    params: Optional[Mapping[str, float]],
-    cosmology_defaults: Mapping[str, float],
-    cluster_names,
-) -> Dict[str, float]:
-    """Parameter values for the prediction, as a flat dict for a Firecrown ParamsMap.
-
-    Cosmology: Firecrown defaults < fiducial cosmology file < config
-    ``cosmological_parameters`` < ``params``. Cluster parameters: config
-    ``firecrown_parameters`` < ``params``.
-    """
-    cosmology = dict(cosmology_defaults)
-    with open(fiducial_cosmology, "r") as f:
-        fiducial = yaml.safe_load(f)
-    cosmology.update({name: float(fiducial[name]) for name in cosmology if name in fiducial})
-
-    for name, spec in cfg["cosmological_parameters"].items():
-        if name == "tau":
-            # CAMB input only, it does not enter the cluster prediction
-            continue
-        if name not in _COSMOSIS_TO_CCL_COSMO_MAP:
-            raise ValueError(
-                f"cosmological_parameters['{name}'] has no CCL equivalent. "
-                f"Supported names are: {', '.join(sorted(_COSMOSIS_TO_CCL_COSMO_MAP))}"
-            )
-        ccl_name = _COSMOSIS_TO_CCL_COSMO_MAP[name]
-        value = _config_value(spec)
-        # Same check as CLPFirecrown.generate_cosmosis_parameters_file
-        if not spec.get("sample", False) and not math.isclose(value, cosmology[ccl_name], rel_tol=1e-6):
-            raise ValueError(
-                f"cosmological_parameters['{name}']={spec['values']} "
-                f"does not match fiducial value {cosmology[ccl_name]}"
-            )
-        cosmology[ccl_name] = value
-
-    cluster = {name: _config_value(spec) for name, spec in cfg["firecrown_parameters"].items()}
-
-    # Accept CosmoSIS names, optionally with their section prefix as in the
-    # chain outputs (e.g. cosmological_parameters--omega_c), CCL names and
-    # Firecrown names.
-    for name, value in (params or {}).items():
-        short = name.split("--")[-1]
-        if short in _COSMOSIS_TO_CCL_COSMO_MAP:
-            cosmology[_COSMOSIS_TO_CCL_COSMO_MAP[short]] = float(value)
-        elif short in cosmology:
-            cosmology[short] = float(value)
-        elif short in cluster_names:
-            cluster[short] = float(value)
-        elif short != "tau":
-            raise ValueError(f"Unknown parameter '{name}'")
-
-    missing = sorted(set(cluster_names) - set(cluster))
-    if missing:
-        raise ValueError(
-            f"No value for {', '.join(missing)}. Add them to firecrown_parameters "
-            "in the configuration or pass them in params."
-        )
-    return {
-        **{name: cosmology[name] for name in sorted(cosmology)},
-        **{name: cluster[name] for name in sorted(cluster_names)},
-    }
-
-
-def _binned_prediction(likelihood: ConstGaussian, statistic) -> BinnedPrediction:
+def _binned_prediction(likelihood, statistic) -> BinnedPrediction:
     bins = statistic.bins
     radius = None
     if isinstance(statistic, BinnedClusterShearProfile):
@@ -351,48 +167,57 @@ def _binned_prediction(likelihood: ConstGaussian, statistic) -> BinnedPrediction
 
 
 def compute_cluster_predictions(
-    config: Union[str, os.PathLike, Mapping[str, Any]],
-    sacc_file: Union[str, os.PathLike],
-    fiducial_cosmology: Union[str, os.PathLike],
+    sampler_file: Union[str, os.PathLike],
     params: Optional[Mapping[str, float]] = None,
 ) -> ClusterPredictions:
     """Evaluate the CLPFirecrown likelihood at one point and return predictions and data.
 
     Parameters
     ----------
-    config
-        Pipeline configuration file (or dictionary) with a ``CLPFirecrown``
-        section, as used to run the stage.
-    sacc_file
-        SACC file with the cluster data vector and covariance
-        (``clusters_sacc_file_cov``).
-    fiducial_cosmology
-        Fiducial cosmology YAML file (CCL names), the ``fiducial_cosmology``
-        input of the stage.
+    sampler_file
+        CosmoSIS ini file written by CLPFirecrown (``sampler_file``). The
+        likelihood file, values file and SACC file are read from the same
+        folder, as when CosmoSIS runs there.
     params
-        Values replacing the configuration ones, for instance a chain best
-        fit. Keys can be CosmoSIS names (``omega_c``, ``sigma_8``, also with
-        the ``cosmological_parameters--`` prefix of the chain files), CCL
-        names (``Omega_c``, ``sigma8``) or Firecrown names
-        (``mass_distribution_mu0``, also with the
-        ``firecrown_number_counts--`` prefix).
+        Values replacing the ones of the values file, for instance a chain
+        best fit. Keys are CosmoSIS names, either ``section--name`` as in the
+        chain files (``cosmological_parameters--sigma_8``) or just ``name``
+        (``mass_distribution_mu0``). Without ``params``, the prediction is at
+        the starting point of the chain.
 
     Returns
     -------
     ClusterPredictions
     """
-    cfg = _load_config(config)
-    likelihood = build_cluster_likelihood(cfg, sacc_file)
-    tools = ModelingTools()
+    run_dir = os.path.dirname(os.path.abspath(sampler_file))
+    sampler = _read_ini(sampler_file)
+    if not sampler.has_section("firecrown_likelihood"):
+        raise ValueError(f"{sampler_file} has no [firecrown_likelihood] section")
+    module = sampler["firecrown_likelihood"]
 
-    values = _resolve_parameters(
-        cfg,
-        fiducial_cosmology,
-        params,
-        tools.required_parameters().get_default_values(),
-        list(likelihood.required_parameters().get_params_names()),
-    )
-    params_map = ParamsMap(values)
+    values = _read_values(os.path.join(run_dir, sampler["pipeline"]["values"]))
+    _apply_params(values, params or {})
+
+    # Same steps as firecrown.connector.cosmosis.likelihood: build the
+    # likelihood with the module options, then collect the sampling sections
+    # and, unless the likelihood makes its own cosmology, the CosmoSIS
+    # cosmology translated to CCL names.
+    build_parameters = NamedParameters({name: _ini_value(raw) for name, raw in module.items()})
+    with contextlib.chdir(run_dir):  # the likelihood file opens the SACC file by basename
+        likelihood, tools = load_likelihood(module["likelihood_source"], build_parameters)
+
+    firecrown_params = {}
+    for section in module.get("sampling_parameters_sections", "").split():
+        firecrown_params.update(values[section])
+    if tools.ccl_factory.creation_mode == CCLCreationMode.DEFAULT:
+        mapping = MappingCosmoSIS()
+        mapping.set_params_from_cosmosis(
+            NamedParameters({**_COSMOSIS_DEFAULTS, **values["cosmological_parameters"]})
+        )
+        firecrown_params.update(mapping.asdict())
+    params_map = ParamsMap(firecrown_params)
+    params_map.use_lower_case_keys(True)
+
     likelihood.update(params_map)
     tools.update(params_map)
     tools.prepare()
@@ -405,30 +230,5 @@ def compute_cluster_predictions(
             shear = _binned_prediction(likelihood, statistic)
         else:
             counts = _binned_prediction(likelihood, statistic)
-    return ClusterPredictions(counts=counts, shear=shear, chi2=float(chi2), parameters=values)
-
-
-def build_cluster_recipes_from_config(
-    yml_file: Union[str, os.PathLike],
-    sacc_file: Union[str, os.PathLike],
-    set_params: Optional[Mapping[str, float]] = None,
-    *,
-    fiducial_cosmology: Union[str, os.PathLike],
-) -> Tuple[np.ndarray, np.ndarray, Optional[np.ndarray], Optional[np.ndarray]]:
-    """Return theory and data vectors as a tuple (older interface).
-
-    Same as :func:`compute_cluster_predictions` with ``params=set_params``.
-
-    Returns
-    -------
-    tuple
-        (cluster_counts_theory, cluster_counts_data, cluster_shear_profile_theory, cluster_shear_data).
-        The counts or shear entries are None when that statistic is not used.
-    """
-    pred = compute_cluster_predictions(yml_file, sacc_file, fiducial_cosmology, params=set_params)
-    counts_theory = counts_data = shear_theory = shear_data = None
-    if pred.counts is not None:
-        counts_theory, counts_data = pred.counts.theory, pred.counts.data
-    if pred.shear is not None:
-        shear_theory, shear_data = pred.shear.theory, pred.shear.data
-    return counts_theory, counts_data, shear_theory, shear_data
+    parameters = {f"{section}--{name}": value for section in values for name, value in values[section].items()}
+    return ClusterPredictions(counts=counts, shear=shear, chi2=float(chi2), parameters=parameters)
