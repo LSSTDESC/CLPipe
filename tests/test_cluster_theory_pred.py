@@ -17,6 +17,7 @@ from .test_clp_firecrown import (
     _base_firecrown_config,
     _make_stage,
     _run_full_cosmosis,
+    _without_param,
 )
 
 
@@ -42,6 +43,9 @@ def test_prediction_matches_cosmosis(
     full_stack, tmp_path, mock_fiducial_cosmology, mock_cluster_sacc_dense, overrides
 ):
     cfg = _base_firecrown_config(sampler="test", filename=str(tmp_path / "chain.txt"), **overrides)
+    if not cfg["use_shear_profile"]:
+        # Firecrown rejects parameters that no statistic uses
+        cfg["firecrown_parameters"] = _without_param(FIRECROWN_PARAMETERS, "cluster_theory_cluster_concentration")
     result = _run_full_cosmosis(tmp_path, mock_fiducial_cosmology, cfg, mock_cluster_sacc_dense)
     assert result.returncode == 0, f"stdout:\n{result.stdout}\n\nstderr:\n{result.stderr}"
     expected = np.loadtxt(tmp_path / "output_counts_mean_mass" / "data_vector" / "firecrown_theory.txt")
