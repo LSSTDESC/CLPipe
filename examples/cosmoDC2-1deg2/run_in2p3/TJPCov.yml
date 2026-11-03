@@ -1,0 +1,19 @@
+id: TJPCov
+modules: clpipe
+launcher:
+    name: mini
+    interval: 0.5
+site:
+    name: local
+    max_threads: 4
+stages:
+  - name: CLPCovariance
+    module_name: clpipe.clp_covariance
+    nprocess: 1
+inputs:
+    clusters_sacc_file: ./outputs_txpipe/cluster_sacc_catalog.sacc
+    fiducial_cosmology: ../../../data/fiducial_cosmology_cosmodc2.yml
+config: ./config_in2p3.yml
+resume: false
+output_dir: ./outputs
+log_dir: ./logs

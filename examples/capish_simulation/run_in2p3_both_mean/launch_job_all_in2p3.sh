@@ -7,7 +7,8 @@
 
 module load conda
 conda activate /sps/lsst/groups/clusters/cl_pipeline_project/conda_envs/firecrown_developer_clp
-export PYTHONPATH=/sps/lsst/users/ebarroso/CLPipe:$PYTHONPATH
+# Use the CLPipe checkout this example lives in
+export PYTHONPATH=$(cd ../../.. && pwd):$PYTHONPATH
 
 ceci TJPCov.yml
 ceci Firecrown.yml
