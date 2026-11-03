@@ -1,24 +1,74 @@
 CLPCovariance Configuration Options
 ===================================
 
-This document describes the configuration options available for the
-CLPCovariance stage. This stage computes covariance matrices for cluster
-observables using TJPCov and outputs an updated SACC file.
+This document describes the configuration options of the CLPCovariance
+stage. The stage computes the theoretical covariance of the cluster number
+counts with TJPCov and writes it into an output SACC file.
 
 --------------------------------------------------
 Overview
 --------------------------------------------------
 
-The CLPCovariance:
+CLPCovariance runs the following steps:
 
-- Reads an input SACC file (data vector)
-- Computes covariance terms using TJPCov
-- Writes a new SACC file with covariance
-- Optionally merges existing covariance (for non-cluster observables)
-- Optionally replaces cluster-count covariance with a custom CROW-based model
+1. Read the input SACC file (data vector) and the fiducial cosmology.
+2. Compute the covariance terms listed in cov_type with TJPCov.
+3. If the input SACC file also contains other observables with a
+   covariance (e.g. cluster_delta_sigma), copy those blocks into the new
+   covariance.
+4. If replace_tjpcov_cov is True, replace the cluster-count block with a
+   CROW-based covariance.
+5. Write a single output SACC file with the final covariance.
+
+Inputs and outputs:
+
+    clusters_sacc_file       (input)    SACC data vector, from TXPipe
+    fiducial_cosmology       (input)    Fiducial cosmology, shared with TXPipe
+    clusters_sacc_file_cov   (output)   SACC file with the final covariance
+
+The cosmology is always read from the fiducial_cosmology input. It is not
+set in the stage configuration.
+
+Input SACC file:
+
+The cluster_counts data points must each have three tracers, in this order:
+
+- survey: survey tracer, with sky_area in deg^2
+- bin_richness: richness bin, with lower/upper edges in log10(richness)
+- bin_z: redshift bin, with lower/upper edges
 
 --------------------------------------------------
-Core Options
+Covariance Model
+--------------------------------------------------
+
+The cluster-count covariance is the sum of a Poisson shot-noise term and a
+super-sample covariance (SSC) term (Lacasa et al. 2018):
+
+```math
+[\mathrm{Cov}_N]_{ijkl} = \delta^K_{ik} \, \delta^K_{jl} \, N_{ij} + [\mathrm{Cov}_{\rm SSC}]_{ijkl}
+
+[\mathrm{Cov}_{\rm SSC}]_{ijkl} = N_{ij} \, N_{kl} \, \langle b \rangle_{ij} \, \langle b \rangle_{kl} \, S_{ik}
+```
+
+where i, k run over redshift bins and j, l over richness bins:
+
+- N_ij: predicted number of clusters in bin (i, j)
+- <b>_ij: halo bias averaged over the clusters in bin (i, j)
+  (model set by halo_bias)
+- S_ik: covariance of the matter density contrast, smoothed by the survey
+  window, between redshift bins i and k (partial-sky window computed from
+  the survey area)
+
+The SSC term scales as N^2, while the shot noise scales as N, so SSC
+becomes important for large cluster samples such as LSST (Fumagalli et al.
+2021).
+
+TJPCov computes the shot-noise term (ClusterCountsGaussian) and the SSC
+term (ClusterCountsSSC) separately. Both use the halo model, mass–richness
+relation and photo-z model set by mor_parameters and photo-z below.
+
+--------------------------------------------------
+TJPCov Options
 --------------------------------------------------
 
 use_mpi (bool, default: False)
@@ -26,192 +76,271 @@ use_mpi (bool, default: False)
     Must be consistent with the execution environment.
 
 do_xi (bool, default: False)
-    Whether to compute real-space correlation functions (xi).
+    Compute real-space correlation function (xi) terms.
     Typically False for cluster-count analyses.
 
-cov_type (list of str)
-    List of covariance terms to compute.
+cov_type (list of str, default: [ClusterCountsGaussian, ClusterCountsSSC])
+    Covariance terms to compute. Supported values:
 
-    Supported values include:
-        - ClusterCountsGaussian
-        - ClusterCountsSSC
-        - ClusterMass (optional, not always used)
-
-    Example:
-        cov_type: [ClusterCountsGaussian, ClusterCountsSSC]
-
---------------------------------------------------
-Cosmology Options
---------------------------------------------------
-
-cosmo (str)
-    Defines how cosmology is provided.
-
-    Options:
-        - "set": use parameters from config
-        - (future) external cosmology object or file
-
-parameters (dict)
-    Cosmological parameters passed to CCL.
-
-    Required fields:
-        Omega_c
-        Omega_b
-        h
-        n_s
-        sigma8
-        w0
-        wa
-        transfer_function
+    - ClusterCountsGaussian: Poisson shot-noise term (diagonal)
+    - ClusterCountsSSC: super-sample covariance term
+    - ClusterMass (optional, not always used)
 
     Example:
-        Omega_c: 0.22
-        Omega_b: 0.0448
-        h: 0.71
-        n_s: 0.963
-        sigma8: 0.8
 
-Note:
-    These parameters are currently only used in the custom covariance
-    replacement step (replace_crow_counts), not directly by TJPCov.
+    ```yaml
+    cov_type: [ClusterCountsGaussian, ClusterCountsSSC]
+    ```
 
 --------------------------------------------------
 Photo-z Options
 --------------------------------------------------
 
-photo-z (dict)
+photo-z (dict, required by TJPCov)
+    Photometric redshift model used by TJPCov. The observed redshift is
+    Gaussian around the true redshift (truncated at z_phot > 0), with a
+    scatter that grows with redshift:
 
-    sigma_0 (float)
-        Photometric redshift uncertainty parameter.
+    ```math
+    \sigma_z(z) = \sigma_0 \, (1 + z)
+    ```
+
+    - sigma_0 (float): photo-z scatter parameter, e.g. 0.05
+
+    The CROW replacement does not use it: it assumes exact (spectroscopic)
+    redshifts.
 
     Example:
+
+    ```yaml
+    photo-z:
         sigma_0: 0.05
+    ```
 
 --------------------------------------------------
 Mass–Observable Relation (MOR) Options
 --------------------------------------------------
 
-mor_parameters (dict)
+mor_parameters (dict, required by TJPCov)
+    Halo model and mass–richness relation.
 
-    Defines the halo mass function and richness–mass relation.
+    Halo model (used by TJPCov only):
 
-    Halo model:
-        mass_func (str)        : e.g. "Despali16"
-        mass_def (str)         : e.g. "200c"
-        halo_bias (str)        : e.g. "Tinker10"
+    - mass_func (str): halo mass function, e.g. "Despali16".
+      Supported: Angulo12, Bocquet16, Bocquet20, Despali16, Jenkins01,
+      Nishimichi19, Press74, Sheth99, Tinker08, Tinker10, Watson13
+    - mass_def (str): mass definition, e.g. "200c"
+    - halo_bias (str): halo bias model, used for <b> in the SSC term,
+      e.g. "Tinker10".
+      Supported: Bhattacharya11, Sheth01, Sheth99, Tinker10
 
-    Mass range:
-        min_halo_mass (float)
-        max_halo_mass (float)
+    Mass range (used by TJPCov and CROW):
 
-    Pivot values:
-        m_pivot (float)
-        z_pivot (float)
+    - min_halo_mass (float): lower mass limit in M_sun, e.g. 1.0e12
+    - max_halo_mass (float): upper mass limit in M_sun, e.g. 3.16e15
 
-    Richness–mass relation parameters:
-        mu_p0, mu_p1, mu_p2
-        sigma_p0, sigma_p1, sigma_p2
+    These are linear masses, not log10.
 
-    These control the mapping between halo mass and observable richness.
+    Mass–richness relation (used by TJPCov and CROW):
+
+    The richness follows the Murata et al. (2019) model. At fixed mass and
+    redshift, ln(richness) is Gaussian. Its mean and its scatter are each
+    linear in ln(M) and ln(1+z), with 3 parameters each:
+
+    ```math
+    P(\ln\lambda \mid M, z) = \frac{1}{\sqrt{2\pi} \, \sigma_{\ln\lambda}} \exp\left[ -\frac{(\ln\lambda - \mu_{\ln\lambda})^2}{2 \sigma_{\ln\lambda}^2} \right]
+
+    \mu_{\ln\lambda}(M, z) = \mu_0 + \mu_m \ln\frac{M}{M_{\rm piv}} + \mu_z \ln\frac{1+z}{1+z_{\rm piv}}
+
+    \sigma_{\ln\lambda}(M, z) = \sigma_0 + \sigma_m \ln\frac{M}{M_{\rm piv}} + \sigma_z \ln\frac{1+z}{1+z_{\rm piv}}
+    ```
+
+    - m_pivot (float): pivot mass, log10(M_piv / M_sun), e.g. 14.3
+    - z_pivot (float): pivot redshift z_piv, e.g. 0.5
+    - mu_p0, mu_p1, mu_p2 (float): mean parameters mu_0, mu_m, mu_z
+    - sigma_p0, sigma_p1, sigma_p2 (float): scatter parameters
+      sigma_0, sigma_m, sigma_z
 
 --------------------------------------------------
 Pipeline-Specific Options
 --------------------------------------------------
 
 replace_tjpcov_cov (bool, default: True)
-    If True, replaces the TJPCov cluster-count covariance with a
-    custom covariance computed using CROW.
+    Replace the TJPCov cluster-count covariance with a covariance computed
+    with CROW (see "Custom Covariance Replacement" below):
 
-    This includes:
-        - Recomputing diagonal terms using theory predictions
-        - Combining SSC and Gaussian contributions
+    - Diagonal terms are recomputed from CROW theory predictions.
+    - SSC and Gaussian contributions are combined.
 
-    WARNING:
-        This is a temporary workaround and should ideally be handled
-        directly inside TJPCov.
+    WARNING: this is a temporary workaround. It should eventually be
+    handled directly inside TJPCov.
 
-wazp_catalog (bool, default: False)
-    Special handling for WaZP catalogs:
-        - Disables purity model
-        - Modifies completeness parameters
+sel_func (bool, default: True)
+    Only used when replace_tjpcov_cov is True.
+
+    If True, the CROW counts are weighted by the Aguena & Lima (2018)
+    completeness model:
+
+    ```math
+    c(M, z) = \frac{\left(M / M_0(z)\right)^{n_c(z)}}{1 + \left(M / M_0(z)\right)^{n_c(z)}}
+
+    n_c(z) = a_n + b_n \, (1 + z), \qquad \log_{10} M_0(z) = a_{\rm piv} + b_{\rm piv} \, (1 + z)
+    ```
+
+    The completeness parameters are fixed to the CROW defaults, which are
+    the cosmoDC2 redMaPPer values (a_n = 1.1321, b_n = 0.7751,
+    a_piv = a_logm_piv = 13.31, b_piv = b_logm_piv = 0.2025). They cannot
+    be set from the configuration.
+
+    If False, no selection function is applied (c = 1).
+    The purity model is currently disabled in the code.
+
+diagonal_shear_covariance (bool, default: True)
+    Only used when the input SACC file contains other observables with a
+    covariance (e.g. cluster_delta_sigma).
+    If True, only the diagonal (per-bin variance) of those blocks is kept.
+    If False, the full blocks are copied.
 
 --------------------------------------------------
 Internal Behavior
 --------------------------------------------------
 
 1. Covariance Computation
-------------------------
+-------------------------
 
-TJPCov computes covariance terms based on cov_type and writes:
+TJPCov computes the terms listed in cov_type and writes:
 
     clusters_sacc_file_cov.sacc
 
-Additional intermediate files may include:
-    - clusters_sacc_file_cov_SSC.sacc
-    - clusters_sacc_file_cov_gauss.sacc
+Intermediate files with the individual terms may also be written:
+
+    clusters_sacc_file_cov_SSC.sacc
+    clusters_sacc_file_cov_gauss.sacc
 
 2. Mixed Data Handling
----------------------
+----------------------
 
-If the input SACC file contains multiple observables:
+If the input SACC file contains other observables besides cluster counts
+and already has a covariance:
 
-    - Cluster counts covariance is recomputed
-    - Other covariance blocks (e.g. lensing) are preserved
+- The cluster-count covariance is recomputed.
+- The other covariance blocks (e.g. lensing) are copied from the input
+  file, diagonal-only or in full (see diagonal_shear_covariance).
 
-This is handled by:
-    extract_data_covariance()
+This is handled by merge_data_covariance().
 
 3. Custom Covariance Replacement
 --------------------------------
 
-If replace_tjpcov_cov = True:
+If replace_tjpcov_cov is True, the cluster-count block is rebuilt with
+CROW. For each cluster-count data point a (one richness-redshift bin),
+CROW predicts the counts
 
-    - The covariance is recomputed using CROW
-    - Theory predictions for counts are evaluated
-    - Covariance elements are replaced using:
+```math
+\begin{aligned}
+N_a = {} & \Omega_S \int_{z_a} dz \int_{\lambda_a} d\ln\lambda \int_{M_{\min}}^{M_{\max}} dM \\
+& \times \frac{d^2V}{dz \, d\Omega} \, \frac{dn}{dM}(M, z) \, P(\ln\lambda \mid M, z) \, c(M, z)
+\end{aligned}
+```
 
-        C_ii = N_theory + SSC * (N_theory^2 / N_gauss^2)
-        C_ij = SSC_ij * (N_i * N_j) / (N_gauss_i * N_gauss_j)
+where Omega_S is the survey area in steradians (from the SACC survey
+tracer), dn/dM is the Despali16 mass function, and c(M, z) is the
+completeness (see sel_func).
 
-    This modifies only the cluster-count block.
+The covariance is then
+
+```math
+C_{aa} = N_a + \mathrm{SSC}_{aa} \left( \frac{N_a}{N^{\rm TJPCov}_a} \right)^2
+
+C_{ab} = \mathrm{SSC}_{ab} \, \frac{N_a \, N_b}{N^{\rm TJPCov}_a \, N^{\rm TJPCov}_b}, \qquad a \neq b
+```
+
+where:
+
+- N_a: CROW theory counts for data point a
+- N^TJPCov_a: TJPCov Gaussian (shot-noise) term for data point a, i.e. the
+  counts predicted by TJPCov
+- SSC_ab: TJPCov super-sample covariance term
+
+The CROW counts are used as the Poisson term on the diagonal. The SSC term
+scales as N_a N_b, so it is rescaled from the TJPCov counts to the CROW
+counts. Only the cluster-count block is modified.
 
 --------------------------------------------------
 Known Limitations
 --------------------------------------------------
 
-- replace_crow_counts() is a temporary workaround and should not exist
-  long-term (should be implemented in TJPCov directly).
+- replace_crow_counts() is a temporary workaround. It should be removed
+  once this is implemented in TJPCov.
 
-- Some configuration options (e.g. cosmology) are duplicated and not
-  consistently used across all steps.
+- The cosmology is passed to TJPCov both as a CCL object and as a
+  parameter dictionary. This duplication comes from TJPCov and should be
+  fixed there.
 
-- Hardcoded choices exist:
-    - Mass function (Despali16)
-    - Grid sizes
-    - Recipe type (GridBinnedClusterRecipe)
+- Hardcoded choices in the CROW replacement:
+    - Mass function: Despali16 (200c), whatever mass_func and mass_def are
+    - Redshifts: spectroscopic (photo-z sigma_0 is not used)
+    - Completeness parameters: CROW defaults
+    - Purity model: disabled
+    - Grid sizes: mass 80, redshift 40, proxy 40
+    - Recipe: GridBinnedClusterRecipe
 
-- No validation is performed on input configuration.
+- The covariance is computed once, at the fiducial cosmology and MOR
+  parameters, and held fixed during inference.
+
+- The input configuration is not validated.
+
+--------------------------------------------------
+Pipeline Configuration
+--------------------------------------------------
+
+The stage is wired into a ceci pipeline file. This example comes from
+examples/cosmodc2_redmapper/baseline/cosmodc2_redmapper_full_analysis/run_in2p3_both/TJPCov.yml:
+
+```yaml
+id: TJPCov
+modules: clpipe
+launcher:
+    name: mini
+    interval: 0.5
+site:
+    name: local
+    max_threads: 4
+stages:
+  - name: CLPCovariance
+    module_name: clpipe.clp_covariance
+    nprocess: 1
+inputs:
+    fiducial_cosmology: /sps/lsst/groups/clusters/cl_pipeline_project/TXPipe_data/cosmodc2/fiducial_cosmology.yml
+    clusters_sacc_file: /sps/lsst/groups/clusters/cl_pipeline_project/TXPipe_data/cosmodc2/outputs-full-2026//cluster_sacc_catalog.sacc
+config: ./config_in2p3_both.yml
+resume: false
+output_dir: ./outputs_both
+log_dir: ./logs_both
+```
+
+Run it with:
+
+```bash
+ceci TJPCov.yml
+```
+
+The stage options below go in the stage config file (config: above),
+under a CLPCovariance block.
 
 --------------------------------------------------
 Example Configuration
 --------------------------------------------------
 
+```yaml
 CLPCovariance:
     use_mpi: False
     do_xi: False
     cov_type: [ClusterCountsGaussian, ClusterCountsSSC]
 
-    cosmo: 'set'
-
-    parameters:
-        Omega_c: 0.22
-        Omega_b: 0.0448
-        h: 0.71
-        n_s: 0.963
-        sigma8: 0.8
-        w0: -1
-        wa: 0
-        transfer_function: 'boltzmann_camb'
+    replace_tjpcov_cov: True
+    sel_func: True
+    diagonal_shear_covariance: True
 
     photo-z:
         sigma_0: 0.05
@@ -232,9 +361,29 @@ CLPCovariance:
         sigma_p0: 0.5623
         sigma_p1: 0.0455
         sigma_p2: -0.0445
+```
 
 --------------------------------------------------
 
 Notes:
-- Additional TJPCov parameters can be added depending on the covariance model.
-- Ensure consistency between SACC input data and MOR configuration.
+
+- Additional TJPCov parameters can be added depending on the covariance
+  model. They are passed through to TJPCov.
+- Make sure the SACC input data and the MOR configuration are consistent.
+
+--------------------------------------------------
+References
+--------------------------------------------------
+
+- Murata et al. (2019), mass–richness relation:
+  https://doi.org/10.1093/pasj/psz092 (arXiv:1904.07524)
+- Lacasa, Lima & Aguena (2018), super-sample covariance:
+  https://arxiv.org/abs/1612.05958
+- Fumagalli et al. (2021), impact of sample covariance on cluster counts:
+  https://arxiv.org/abs/2102.08914
+- Aguena & Lima (2018), completeness and purity:
+  https://arxiv.org/abs/1611.05468
+- Despali et al. (2016), halo mass function:
+  https://arxiv.org/abs/1507.05627
+- Tinker et al. (2010), halo bias:
+  https://arxiv.org/abs/1001.3162

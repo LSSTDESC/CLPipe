@@ -30,6 +30,7 @@ class CLPFirecrown(PipelineStage):
     """Firecrown pipeline stage for cluster cosmology analysis.
 
     This stage:
+
     - Builds a Firecrown likelihood from a SACC file
     - Generates the corresponding CosmoSIS configuration
     - Writes parameter files for sampling, defaulting the cosmological
@@ -38,6 +39,7 @@ class CLPFirecrown(PipelineStage):
       how a parameter gets sampled instead of held fixed
 
     Key configuration groups:
+    
     - Modeling options (hmf, mass range, redshift range)
     - Observable selection (cluster counts, shear)
     - Systematics (purity, completeness)
@@ -92,10 +94,10 @@ class CLPFirecrown(PipelineStage):
         "emcee_walkers": StageParameter(int, 100, msg="Number of emcee walkers."),
         "emcee_samples": StageParameter(int, 20000, msg="Number of emcee samples."),
         "emcee_nsteps": StageParameter(int, 20, msg="Number of emcee steps per sample."),
-        "polycord_live_points": StageParameter(int, 500, msg="Number of PolyChord live points."),
-        "polycord_num_repeats": StageParameter(int, 30, msg="Number of PolyChord repeats."),
-        "polycord_tolerance": StageParameter(float, 0.05, msg="PolyChord evidence tolerance."),
-        "polycord_feedback": StageParameter(int, 1, msg="PolyChord feedback level."),
+        "polychord_live_points": StageParameter(int, 500, msg="Number of PolyChord live points."),
+        "polychord_num_repeats": StageParameter(int, 30, msg="Number of PolyChord repeats."),
+        "polychord_tolerance": StageParameter(float, 0.05, msg="PolyChord evidence tolerance."),
+        "polychord_feedback": StageParameter(int, 1, msg="PolyChord feedback level."),
         "resume": StageParameter(bool, False, msg="If True, CosmoSIS appends to the existing chain at `filename` instead of starting fresh"),
         # Cosmology -- tau is a CAMB input (reionization optical depth), not
         # a CCL cosmology parameter, so it isn't in the fiducial cosmology
@@ -240,7 +242,10 @@ class CLPFirecrown(PipelineStage):
                 # Core CROW imports
                 f.write("from crow import ClusterAbundance, ClusterShearProfile, kernel, mass_proxy\n")
                 f.write("from crow.properties import ClusterProperty\n")
-                f.write("from crow.recipes.binned_grid import GridBinnedClusterRecipe\n\n")
+                if use_grid:
+                    f.write("from crow.recipes.binned_grid import GridBinnedClusterRecipe\n\n")
+                else:
+                    f.write("from crow.recipes.binned_exact import ExactBinnedClusterRecipe\n\n")
                 f.write(
                     "from crow import purity_models, completeness_models\n"
                 )
@@ -411,10 +416,10 @@ class CLPFirecrown(PipelineStage):
             emcee_samples = cfg["emcee_samples"]
             emcee_nsteps = cfg["emcee_nsteps"]
 
-            polycord_live_points = cfg["polycord_live_points"]
-            polycord_num_repeats = cfg["polycord_num_repeats"]
-            polycord_tolerance = cfg["polycord_tolerance"]
-            polycord_feedback = cfg["polycord_feedback"]
+            polychord_live_points = cfg["polychord_live_points"]
+            polychord_num_repeats = cfg["polychord_num_repeats"]
+            polychord_tolerance = cfg["polychord_tolerance"]
+            polychord_feedback = cfg["polychord_feedback"]
 
             beta_parameters = cfg["beta_parameters"]
             with open(output_ini_path, 'w') as f:
@@ -478,10 +483,10 @@ class CLPFirecrown(PipelineStage):
                 f.write(f"nsteps = {emcee_nsteps}\n")
 
                 f.write("[polychord]\n")
-                f.write(f"live_points = {polycord_live_points}\n")
-                f.write(f"num_repeats = {polycord_num_repeats}\n")
-                f.write(f"tolerance = {polycord_tolerance}\n")
-                f.write(f"feedback = {polycord_feedback}\n")
+                f.write(f"live_points = {polychord_live_points}\n")
+                f.write(f"num_repeats = {polychord_num_repeats}\n")
+                f.write(f"tolerance = {polychord_tolerance}\n")
+                f.write(f"feedback = {polychord_feedback}\n")
             print(f"INI file written to {output_ini_path}")
             return True
 
