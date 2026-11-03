@@ -20,8 +20,7 @@ from the chain's.
 import configparser
 import contextlib
 import os
-from dataclasses import dataclass
-from typing import Dict, Mapping, Optional, Union
+from typing import Dict, Mapping, Optional, Tuple, Union
 
 import numpy as np
 from firecrown.connector.mapping import MappingCosmoSIS
@@ -32,71 +31,6 @@ from firecrown.updatable import ParamsMap
 # Filled in by the CosmoSIS consistency module during a chain, but read by
 # MappingCosmoSIS and not written to the values file by CLPFirecrown.
 _COSMOSIS_DEFAULTS = {"omega_nu": 0.0}
-
-
-@dataclass
-class BinnedPrediction:
-    """Prediction and measurement of one cluster statistic.
-
-    All arrays follow the order of the statistic's data vector in the SACC
-    file, so ``theory[i]``, ``data[i]`` and ``z_edges[i]`` refer to the same
-    bin.
-
-    Attributes
-    ----------
-    theory
-        Predicted data vector.
-    data
-        Measured data vector.
-    covariance
-        Block of the SACC covariance for this statistic.
-    z_edges
-        Redshift bin edges, shape (n, 2).
-    proxy_edges
-        log10(richness) bin edges, shape (n, 2).
-    radius
-        Radius bin centers, shape (n,). None for the counts statistic.
-    sacc_indices
-        Indices of the data points in the SACC file.
-    """
-
-    theory: np.ndarray
-    data: np.ndarray
-    covariance: np.ndarray
-    z_edges: np.ndarray
-    proxy_edges: np.ndarray
-    radius: Optional[np.ndarray]
-    sacc_indices: np.ndarray
-
-    @property
-    def errors(self) -> np.ndarray:
-        """Square root of the covariance diagonal."""
-        return np.sqrt(np.diag(self.covariance))
-
-
-@dataclass
-class ClusterPredictions:
-    """Output of :func:`compute_cluster_predictions`.
-
-    Attributes
-    ----------
-    counts
-        Number counts (and mean log mass, if enabled). None when the
-        likelihood has no counts statistic.
-    shear
-        Stacked shear profile (DeltaSigma or reduced shear). None when the
-        likelihood has no shear statistic.
-    chi2
-        Chi-squared of the whole likelihood, using the full SACC covariance.
-    parameters
-        Values used for the prediction, keyed ``section--name`` as in the
-        CosmoSIS chain files.
-    """
-
-    counts: Optional[BinnedPrediction]
-    shear: Optional[BinnedPrediction]
-    chi2: float
-    parameters: Dict[str, float]
 
 
 def _ini_value(raw: str):
@@ -150,26 +84,35 @@ def _apply_params(values: Dict[str, Dict[str, float]], params: Mapping[str, floa
         values[sections[0]][name] = float(value)
 
 
-def _binned_prediction(likelihood, statistic) -> BinnedPrediction:
+def _binned_prediction(likelihood, statistic) -> Dict[str, Optional[np.ndarray]]:
+    """Prediction and measurement of one statistic, in the order of its SACC data vector.
+
+    Keys: ``theory``, ``data``, ``covariance`` (block of the SACC
+    covariance), ``errors`` (square root of its diagonal), ``z_edges`` and
+    ``proxy_edges`` (log10 richness), both of shape (n, 2), ``radius``
+    (radius bin centers, None for counts) and ``sacc_indices``.
+    """
     bins = statistic.bins
     radius = None
     if isinstance(statistic, BinnedClusterShearProfile):
         radius = np.array([b.radius_center for b in bins])
-    return BinnedPrediction(
-        theory=np.asarray(statistic.get_theory_vector(), dtype=float),
-        data=np.asarray(statistic.get_data_vector(), dtype=float),
-        covariance=likelihood.get_cov(statistic),
-        z_edges=np.array([b.z_edges for b in bins]),
-        proxy_edges=np.array([b.mass_proxy_edges for b in bins]),
-        radius=radius,
-        sacc_indices=np.asarray(statistic.sacc_indices),
-    )
+    covariance = likelihood.get_cov(statistic)
+    return {
+        "theory": np.asarray(statistic.get_theory_vector(), dtype=float),
+        "data": np.asarray(statistic.get_data_vector(), dtype=float),
+        "covariance": covariance,
+        "errors": np.sqrt(np.diag(covariance)),
+        "z_edges": np.array([b.z_edges for b in bins]),
+        "proxy_edges": np.array([b.mass_proxy_edges for b in bins]),
+        "radius": radius,
+        "sacc_indices": np.asarray(statistic.sacc_indices),
+    }
 
 
 def compute_cluster_predictions(
     sampler_file: Union[str, os.PathLike],
     params: Optional[Mapping[str, float]] = None,
-) -> ClusterPredictions:
+) -> Tuple[Optional[dict], Optional[dict], float, Dict[str, float]]:
     """Evaluate the CLPFirecrown likelihood at one point and return predictions and data.
 
     Parameters
@@ -187,7 +130,14 @@ def compute_cluster_predictions(
 
     Returns
     -------
-    ClusterPredictions
+    counts, shear
+        Dictionaries described in :func:`_binned_prediction`, for the number
+        counts (and mean log mass, if enabled) and the stacked shear profile.
+        None when the likelihood does not have that statistic.
+    chi2
+        Chi-squared of the whole likelihood, using the full SACC covariance.
+    parameters
+        Values used, keyed ``section--name`` as in the CosmoSIS chain files.
     """
     run_dir = os.path.dirname(os.path.abspath(sampler_file))
     sampler = _read_ini(sampler_file)
@@ -231,4 +181,4 @@ def compute_cluster_predictions(
         else:
             counts = _binned_prediction(likelihood, statistic)
     parameters = {f"{section}--{name}": value for section in values for name, value in values[section].items()}
-    return ClusterPredictions(counts=counts, shear=shear, chi2=float(chi2), parameters=parameters)
+    return counts, shear, float(chi2), parameters

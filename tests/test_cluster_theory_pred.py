@@ -46,14 +46,14 @@ def test_prediction_matches_cosmosis(
     assert result.returncode == 0, f"stdout:\n{result.stdout}\n\nstderr:\n{result.stderr}"
     expected = np.loadtxt(tmp_path / "output_counts_mean_mass" / "data_vector" / "firecrown_theory.txt")
 
-    pred = compute_cluster_predictions(tmp_path / "sampler_file.ini")
-    theory = [pred.counts.theory]
-    if pred.shear is not None:
-        theory.append(pred.shear.theory)
+    counts, shear, _, _ = compute_cluster_predictions(tmp_path / "sampler_file.ini")
+    theory = [counts["theory"]]
+    if shear is not None:
+        theory.append(shear["theory"])
     # CosmoSIS takes the power spectrum from its CAMB module, here CCL
     # computes it, hence the tolerance.
     np.testing.assert_allclose(np.concatenate(theory), expected, rtol=5e-3)
-    assert (pred.shear is None) == (not cfg["use_shear_profile"])
+    assert (shear is None) == (not cfg["use_shear_profile"])
 
 
 @pytest.mark.slow
@@ -61,19 +61,19 @@ def test_params_override_values_file(full_stack, tmp_path, mock_fiducial_cosmolo
     cfg = _base_firecrown_config(use_shear_profile=False, use_mean_deltasigma=False)
     sampler_file = _generate_files(tmp_path, mock_cluster_sacc_dense, mock_fiducial_cosmology, cfg)
 
-    start = compute_cluster_predictions(sampler_file)
-    assert start.parameters["cosmological_parameters--sigma_8"] == 0.8
-    assert start.parameters["firecrown_number_counts--mass_distribution_mu0"] == pytest.approx(
+    start_counts, _, _, start_parameters = compute_cluster_predictions(sampler_file)
+    assert start_parameters["cosmological_parameters--sigma_8"] == 0.8
+    assert start_parameters["firecrown_number_counts--mass_distribution_mu0"] == pytest.approx(
         FIRECROWN_PARAMETERS["mass_distribution_mu0"]["values"][1]
     )
 
-    pred = compute_cluster_predictions(
+    counts, _, _, parameters = compute_cluster_predictions(
         sampler_file,
         params={"cosmological_parameters--sigma_8": 0.85, "mass_distribution_mu0": 3.5},
     )
-    assert pred.parameters["cosmological_parameters--sigma_8"] == 0.85
-    assert pred.parameters["firecrown_number_counts--mass_distribution_mu0"] == 3.5
-    assert not np.allclose(pred.counts.theory, start.counts.theory)
+    assert parameters["cosmological_parameters--sigma_8"] == 0.85
+    assert parameters["firecrown_number_counts--mass_distribution_mu0"] == 3.5
+    assert not np.allclose(counts["theory"], start_counts["theory"])
 
 
 def test_unknown_parameter_raises(full_stack, tmp_path, mock_fiducial_cosmology, mock_cluster_sacc_dense):
