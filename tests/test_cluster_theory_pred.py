@@ -65,8 +65,9 @@ def _generated_theory(tmp_path, sacc_path, fiducial_cosmology_path, cfg, paramet
         {"use_shear_profile": False},
         {"use_purity": False, "use_completeness": False},
         {"hmf": "tinker08", "mass_grid_size": 40},
+        {"use_grid": False, "use_shear_profile": False},
     ],
-    ids=["counts_deltasigma", "counts_only", "no_selection", "tinker08"],
+    ids=["counts_deltasigma", "counts_only", "no_selection", "tinker08", "exact_recipe"],
 )
 def test_prediction_matches_generated_likelihood(
     tmp_path, mock_fiducial_cosmology, mock_cluster_sacc_dense, monkeypatch, overrides
