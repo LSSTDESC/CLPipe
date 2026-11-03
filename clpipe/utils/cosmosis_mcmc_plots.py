@@ -50,8 +50,16 @@ import matplotlib.pyplot as plt
 import numpy as np
 from astropy.io import fits
 from astropy.table import Table
-from getdist import MCSamples, plots
-from IPython.display import Math, display
+
+# getdist switches matplotlib to Agg on import when it does not recognise the
+# notebook backend (older versions only look for 'ipykern'), which stops the
+# figures from showing inline. Keep the backend that was active before.
+_backend = mpl.get_backend()
+from getdist import MCSamples, plots  # noqa: E402
+if mpl.get_backend() != _backend:
+    plt.switch_backend(_backend)
+
+from IPython.display import Math, display  # noqa: E402
 
 try:
     from cosmosis.postprocessing.inputs import read_input as _cosmosis_read
@@ -75,10 +83,68 @@ _PAPER_RC = {
     "axes.labelsize":    18,
     "xtick.labelsize":    13,
     "ytick.labelsize":    13,
-    "legend.fontsize":   15,
+    "legend.fontsize":   18,
     "legend.frameon":   False,
+    "legend.handlelength": 3.0,
+    "legend.handleheight": 1.4,
     "figure.dpi":       150,
 }
+
+# ══════════════════════════════════════════════════════════════════════════════
+# Shared style for the paper's line and point figures
+# ══════════════════════════════════════════════════════════════════════════════
+
+# Page widths of the two-column journal layout, in inches. Figures are drawn
+# at the width they are printed at, so font sizes below are the printed sizes.
+TEXT_WIDTH = 7.1
+COLUMN_WIDTH = 3.4
+
+# One color and one marker per richness bin (20-35, 35-70, 70-100, 100-200).
+# Okabe-Ito based, ordered so that no two neighbouring bins merge under
+# deuteranopia, protanopia or tritanopia.
+RICHNESS_COLORS = ["#5E3C99", "#D55E00", "#56B4E9", "#E69F00"]
+RICHNESS_MARKERS = ["o", "s", "^", "D"]
+
+PAPER_FIGURE_RC = {
+    "font.size":           8,
+    "axes.labelsize":      9,
+    "axes.titlesize":      9,
+    "legend.fontsize":     8,
+    "xtick.labelsize":     8,
+    "ytick.labelsize":     8,
+    "axes.linewidth":      0.7,
+    "lines.linewidth":     1.4,
+    "lines.markersize":    4,
+    "legend.framealpha":   0.9,
+    "legend.edgecolor":    "0.8",
+    "savefig.dpi":         300,
+}
+
+
+def use_paper_style():
+    """Apply PAPER_FIGURE_RC to every figure made afterwards in the session."""
+    mpl.rcParams.update(PAPER_FIGURE_RC)
+
+
+def add_grid(ax, which="both"):
+    """Major grid in solid grey and minor grid dotted, dark enough for print."""
+    if which in ("both", "major"):
+        ax.grid(True, which="major", linestyle="-", linewidth=0.6, color="0.70")
+    if which in ("both", "minor"):
+        ax.grid(True, which="minor", linestyle=":", linewidth=0.5, color="0.78")
+    ax.set_axisbelow(True)
+
+
+def richness_label(low, high):
+    """Legend label for a richness bin, e.g. '$20 < \\lambda < 35$'."""
+    return rf"${low:.0f} < \lambda < {high:.0f}$"
+
+
+def thicken_legend_lines(fig, linewidth=2.5):
+    """Thicker line handles in the figure legends, so thin contour styles read in print."""
+    for legend in fig.legends:
+        for line in legend.get_lines():
+            line.set_linewidth(linewidth)
 
 
 @dataclass
@@ -354,7 +420,7 @@ def plot_triangle(
         g = plots.get_subplot_plotter(width_inch=config.figsize)
         g.settings.axes_fontsize = 13
         g.settings.lab_fontsize = 18
-        g.settings.legend_fontsize = 15
+        g.settings.legend_fontsize = 18
         g.settings.figure_legend_loc = "upper right"
         g.settings.axis_tick_x_rotation = 45
         g.settings.num_plot_contours = 2
@@ -373,6 +439,7 @@ def plot_triangle(
             markers=plot_markers,
             param_limits=config.param_limits,
         )
+        thicken_legend_lines(g.fig)
 
         if multiple_fiducials:
             for marker, style in zip(fiducial_values, styles):

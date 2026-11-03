@@ -189,6 +189,17 @@ def test_generated_python_is_syntactically_valid(ceci_stack, tmp_path, mock_fidu
     assert "build_likelihood" in func_names
     assert "get_cluster_recipe" in func_names
 
+    # ast.parse only checks syntax: a recipe class used without being
+    # imported would only fail when Firecrown loads the file.
+    imported_names = {
+        alias.asname or alias.name
+        for node in ast.walk(tree) if isinstance(node, ast.ImportFrom)
+        for alias in node.names
+    }
+    recipe_cls = "GridBinnedClusterRecipe" if cfg["use_grid"] else "ExactBinnedClusterRecipe"
+    assert f"{recipe_cls}(" in source
+    assert recipe_cls in imported_names
+
     if cfg["use_cluster_counts"]:
         assert "get_cluster_abundance" in func_names
         assert "BinnedClusterNumberCounts" in source
@@ -266,6 +277,27 @@ def test_filename_option_used_not_hardcoded_default(full_stack, tmp_path, mock_f
     parser = configparser.ConfigParser()
     parser.read(ini_path)
     assert parser["output"]["filename"] == custom_filename
+
+
+def test_polychord_options_written_to_polychord_section(full_stack, tmp_path, mock_fiducial_cosmology):
+    cfg = _base_firecrown_config(
+        polychord_live_points=123,
+        polychord_num_repeats=7,
+        polychord_tolerance=0.2,
+        polychord_feedback=2,
+    )
+    sacc_path = tmp_path / "clusters_sacc_file_cov.sacc"
+    stage = _make_stage(tmp_path, sacc_path, mock_fiducial_cosmology, cfg)
+
+    ini_path = tmp_path / "test_polychord.ini"
+    assert stage.generate_ini_file(str(ini_path), "likelihood_file.py", "priors_file.ini")
+
+    parser = configparser.ConfigParser()
+    parser.read(ini_path)
+    assert parser["polychord"]["live_points"] == "123"
+    assert parser["polychord"]["num_repeats"] == "7"
+    assert parser["polychord"]["tolerance"] == "0.2"
+    assert parser["polychord"]["feedback"] == "2"
 
 
 def test_only_cosmo_sampled_writes_correct_priors(full_stack, tmp_path, mock_fiducial_cosmology):

@@ -12,7 +12,7 @@ stages:
     nprocess: 1
 inputs:
     fiducial_cosmology: /sps/lsst/groups/clusters/cl_pipeline_project/TXPipe_data/cosmodc2/fiducial_cosmology.yml
-    clusters_sacc_file: ../mock_DC2like_cluster_sacc_mean.sacc
+    clusters_sacc_file: ../../../data/capish_simulation/mock_DC2like_cluster_sacc_mean.sacc
 config: ./config_in2p3_both.yml
 resume: false
 output_dir: ./outputs_both

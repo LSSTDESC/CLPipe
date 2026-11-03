@@ -42,7 +42,6 @@ class CLPCovariance(PipelineStage):
         "replace_tjpcov_cov": StageParameter(bool, True, msg="Replace TJPCov cluster-count covariance with CROW covariance."),
         # Selection function
         "sel_func": StageParameter(bool, True, msg="Include purity and completeness selection functions."),
-        "wazp_catalog": StageParameter(bool, False, msg="Use WaZP completeness parameters instead of Aguena+16 defaults (extra, non-default)."),
         "diagonal_shear_covariance": StageParameter(
             bool, True,
             msg=(
@@ -255,7 +254,6 @@ class CLPCovariance(PipelineStage):
 
         # This function should not exist as it should be implemented in TJPCov.
         # This is temporary and so most of the options and configurations are fixed.
-        is_wazp = config_dict.get("wazp_catalog", False)
         sel_func = config_dict.get("sel_func", True)
         mor_params = config_dict["mor_parameters"]
         hmf = ccl.halos.MassFuncDespali16(mass_def="200c")
@@ -274,12 +272,6 @@ class CLPCovariance(PipelineStage):
         cl_abundance          = ClusterAbundance(cosmo, hmf)
         purity_aguena         = None#purity_models.PurityAguena16LnProxy()
         completeness_aguena   = completeness_models.CompletenessAguena16()
-        if is_wazp:
-            purity_aguena = None
-            completeness_aguena['a_n'] = 1.570597
-            completeness_aguena['b_n'] = -0.028690
-            completeness_aguena['a_logm_piv'] = 14.264386
-            completeness_aguena['b_logm_piv'] = 0.029814
         redshift_distribution = kernel.SpectroscopicRedshift()
         if not sel_func:
             completeness_aguena = None
