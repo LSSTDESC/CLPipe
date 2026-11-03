@@ -20,6 +20,7 @@ from the chain's.
 import configparser
 import contextlib
 import os
+import warnings
 from typing import Dict, Mapping, Optional, Tuple, Union
 
 import numpy as np
@@ -126,7 +127,11 @@ def compute_cluster_predictions(
     build_parameters = NamedParameters(
         {name: {"TRUE": True, "FALSE": False}.get(raw.upper(), raw) for name, raw in module.items()}
     )
-    with contextlib.chdir(run_dir):  # the likelihood file opens the SACC file by basename
+    # The likelihood file opens the SACC file by basename. CROW warns that the
+    # shear profile is created without a concentration, which is set from the
+    # values file below, as in the chain.
+    with contextlib.chdir(run_dir), warnings.catch_warnings():
+        warnings.filterwarnings("ignore", message="The concentration value")
         likelihood, tools = load_likelihood(module["likelihood_source"], build_parameters)
 
     # Cluster parameters from the sampling sections, cosmology translated to
