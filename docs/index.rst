@@ -19,4 +19,14 @@ The source code is publicly available at https://github.com/LSSTDESC/CLPipe.
    source/LSST DESC software dependencies
    source/api
 
+.. toctree::
+   :maxdepth: 1
+   :caption: Tutorials
 
+   tutorials/README
+   tutorials/running_an_analysis
+   tutorials/txpipe
+   tutorials/covariance_tjpcov
+   tutorials/likelihood_firecrown
+   tutorials/theory_prediction
+   tutorials/writing_a_stage

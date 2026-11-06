@@ -4,7 +4,7 @@ CLPipe runs DESC tools one after the other to go from cluster and galaxy
 catalogs to cosmological constraints. For now, the analysis uses binned cluster counts and stacked weak
 lensing profiles. These tutorials show what each step does and how to run it.
 Installation and the example analyses are described in the main
-[README](../README.md).
+[README](https://github.com/LSSTDESC/CLPipe#readme).
 
 ## The pipeline
 
