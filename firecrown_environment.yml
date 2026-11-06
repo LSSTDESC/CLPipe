@@ -54,6 +54,7 @@ dependencies:
   - sphinx-autoapi
   - sphinx-autodoc-typehints
   - sphinx-rtd-theme
+  - myst-nb
   - sphinxcontrib-apidoc
   - pip:
     - ceci >= 2.5

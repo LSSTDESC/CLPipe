@@ -1,6 +1,6 @@
 project = "CLPipe"
 author = "LSST DESC CLPipe Contributors"
-release = "0.0.1"
+release = "1.0.0"
 
 import os
 import shutil
