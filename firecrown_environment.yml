@@ -60,7 +60,7 @@ dependencies:
     - qp-prob
     - git+https://github.com/LSSTDESC/CLMM.git@1.14.6
     - git+https://github.com/LSSTDESC/firecrown
-    - git+https://github.com/LSSTDESC/TJPCov.git@clustercount_cov_validation
+    - tjpcov>=0.6
     - autoclasstoc
     - cobaya
     - isitgr
