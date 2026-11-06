@@ -54,15 +54,16 @@ dependencies:
   - sphinx-autoapi
   - sphinx-autodoc-typehints
   - sphinx-rtd-theme
+  - myst-nb
   - sphinxcontrib-apidoc
   - pip:
     - ceci >= 2.5
     - qp-prob
     - git+https://github.com/LSSTDESC/CLMM.git@1.14.6
-    - git+https://github.com/LSSTDESC/firecrown
-    - git+https://github.com/LSSTDESC/TJPCov.git@clustercount_cov_validation
+    - git+https://github.com/LSSTDESC/firecrown@7098afc792a439218245257c3802d491537a8f10
+    - tjpcov==0.6.0
     - autoclasstoc
     - cobaya
     - isitgr
-    - lsstdesc-crow
+    - git+https://github.com/LSSTDESC/crow@8a79d037a9f35a9f16cf95c7f683692c8f536265
     - sphinx_copybutton
