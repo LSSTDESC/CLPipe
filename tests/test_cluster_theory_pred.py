@@ -88,3 +88,17 @@ def test_unknown_parameter_raises(full_stack, tmp_path, mock_fiducial_cosmology,
         compute_cluster_predictions(sampler_file, params={"not_a_parameter": 1.0})
     with pytest.raises(ValueError, match="'firecrown_number_counts--omega_c' does not match exactly one entry"):
         compute_cluster_predictions(sampler_file, params={"firecrown_number_counts--omega_c": 0.3})
+
+
+def test_missing_sampler_file_raises(tmp_path):
+    with pytest.raises(FileNotFoundError):
+        compute_cluster_predictions(tmp_path / "sampler_file.ini")
+
+
+def test_malformed_values_file_raises(tmp_path):
+    (tmp_path / "sampler_file.ini").write_text(
+        "[pipeline]\nvalues = priors_file.ini\n\n[firecrown_likelihood]\nlikelihood_source = likelihood_file.py\n"
+    )
+    (tmp_path / "priors_file.ini").write_text("[cosmological_parameters]\nomega_c = 0.1 0.22\n")
+    with pytest.raises(ValueError, match="Cannot read 'omega_c = 0.1 0.22'"):
+        compute_cluster_predictions(tmp_path / "sampler_file.ini")
