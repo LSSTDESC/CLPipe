@@ -1,7 +1,7 @@
 # CLPipe tutorials
 
 CLPipe runs DESC tools one after the other to go from cluster and galaxy
-catalogs to cosmological constraints from cluster counts and stacked weak
+catalogs to cosmological constraints. For now, the analysis uses binned cluster counts and stacked weak
 lensing profiles. These tutorials show what each step does and how to run it.
 Installation and the example analyses are described in the main
 [README](../README.md).
@@ -44,23 +44,13 @@ To add your own step to the pipeline, see
 
 ## Environments and kernels
 
-Some packages needed by TXPipe conflict with the ones needed by Firecrown, so
-the pipeline uses two Conda environments. Both are shared at CC-IN2P3 and
-NERSC.
-
-| Environment | Used for |
-|---|---|
-| `txpipe_clp` | TXPipe stages |
-| `firecrown_developer_clp` | CLPCovariance, CLPFirecrown, CosmoSIS and the notebooks in this folder |
-
-They are in `/sps/lsst/groups/clusters/cl_pipeline_project/conda_envs/` at
-CC-IN2P3 and in
-`/global/cfs/projectdirs/lsst/groups/CL/cl_pipeline_project/conda_envs/` at
-NERSC.
+The notebooks in this folder run in the Firecrown environment of the pipeline.
+The main README describes the two environments, where the shared ones are at
+CC-IN2P3 and NERSC, and how to create them on your own machine.
 
 To run the notebooks on a Jupyter platform, copy the shared kernel to your home
 directory once, then select the `firecrown_clp` kernel in Jupyter. Despite its
-name, this kernel starts the `firecrown_developer_clp` environment.
+name, this kernel starts the shared `firecrown_developer_clp` environment.
 
 At CC-IN2P3 (https://notebook.cc.in2p3.fr):
 
@@ -79,9 +69,8 @@ cp -r /global/cfs/projectdirs/lsst/groups/CL/cl_pipeline_project/jupyter_kernels
 The `txpipe_clp` kernel is in the same folders, if you want to work with the
 TXPipe environment.
 
-On your own machine, create the `firecrown_clp` environment from
-`firecrown_environment.yml` as explained in the main README, then register it
-as a kernel with `python -m ipykernel install --user --name firecrown_clp`.
+On your own machine, register the Firecrown environment as a kernel with
+`python -m ipykernel install --user --name firecrown_clp`.
 
 ## Files in this folder
 
