@@ -315,19 +315,15 @@ class CLPCovariance(PipelineStage):
         for i in theory_counts:
             tjpcov_counts_i = counts_cov[i, i]
             ssc_term_i      = ssc_cov[i, i]
-            old_cov_ii = full_cov[i, i]
             full_cov[i, i] = theory_counts[i] + ssc_term_i * theory_counts[i]**2 / (tjpcov_counts_i**2)
-            print(f"Replaced cov points at {i, i}. From {old_cov_ii} to {full_cov[i, i]}")
             for j in theory_counts:
                 if j <= i:
                     continue
-                old_cov_ij      = full_cov[i, j]
                 tjpcov_counts_j = counts_cov[j, j]
                 ssc_term_ij     = ssc_cov[i, j]
                 val = ssc_term_ij * theory_counts[i] * theory_counts[j] / (tjpcov_counts_i * tjpcov_counts_j)
                 full_cov[i, j] = val
                 full_cov[j, i] = val
-                print(f"Replaced cov points at {i, j}. From {old_cov_ij} to {full_cov[i, j]}")
 
         # Exposed for introspection (tests, debugging): the CROW theory
         # prediction per cluster_counts data-point index, i.e. the Poisson
