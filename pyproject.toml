@@ -24,6 +24,7 @@ classifiers = [
 [project.urls]
 Homepage = "https://github.com/LSSTDESC/CLPipe"
 Issues = "https://github.com/LSSTDESC/CLPipe/issues"
+Documentation = "https://lsstdesc.org/CLPipe/"
 
 [tool.setuptools.packages.find]
 where = ["."]

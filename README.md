@@ -8,7 +8,7 @@
 
 [![Build and Check](https://github.com/LSSTDESC/CLPipe/actions/workflows/ci.yml/badge.svg)](https://github.com/LSSTDESC/CLPipe/actions/workflows/ci.yml)
 [![Coverage Status](https://codecov.io/gh/LSSTDESC/CLPipe/branch/main/graph/badge.svg)](https://codecov.io/gh/LSSTDESC/CLPipe)
-[![Documentation](https://github.com/LSSTDESC/CLPipe/actions/workflows/docs.yml/badge.svg)](https://lsstdesc.github.io/CLPipe/)
+[![Documentation](https://github.com/LSSTDESC/CLPipe/actions/workflows/docs.yml/badge.svg)](https://lsstdesc.org/CLPipe/)
 
 CLPipe is the current implementation of the LSST DESC Cluster Pipeline,
 developed by the Cluster Working Group of the LSST Dark Energy Science
@@ -26,6 +26,10 @@ their input and output files, so a stage can be replaced or extended without
 changing the rest of the pipeline. The current version runs a binned analysis
 of cluster counts and stacked weak lensing profiles, and has been validated on
 mock data and on the cosmoDC2 redMaPPer cluster catalog.
+
+The documentation is at https://lsstdesc.org/CLPipe/. It includes the
+tutorials of the [`tutorials`](tutorials) folder, which show how to run an
+analysis, how each step works, and how to add a stage.
 
 ## Installation
 

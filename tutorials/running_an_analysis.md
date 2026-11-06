@@ -54,8 +54,8 @@ through the tag. Between two pipeline files the connection is made by path:
 The configuration file has one section per stage, named after the stage, for
 the TXPipe stages and the CLPipe ones alike. An option that is not given takes
 the default of the stage. The options of
-[`CLPCovariance`](https://lsstdesc.github.io/CLPipe/source/clp_covariance.html)
-and [`CLPFirecrown`](https://lsstdesc.github.io/CLPipe/source/clp_firecrown.html)
+[`CLPCovariance`](https://lsstdesc.org/CLPipe/source/clp_covariance.html)
+and [`CLPFirecrown`](https://lsstdesc.org/CLPipe/source/clp_firecrown.html)
 are listed in the documentation, and the tutorials of these stages show the
 sections used in this analysis.
 
