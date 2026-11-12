@@ -28,6 +28,7 @@ dependencies:
   - portalocker
   - pybobyqa
   - pyccl =3.2.1
+  - camb =1.6.1
   - pydantic
   - pylint
   - pytest
