@@ -35,7 +35,7 @@ dependencies:
   - python >=3.12
   - pyyaml
   - requests
-  - sacc >= 2.1
+  - sacc =2.1.2
   - scipy
   - tabulate
   - types-pyyaml
@@ -60,7 +60,7 @@ dependencies:
     - ceci ==2.5
     - qp-prob
     - clmm ==1.16.1
-    - git+https://github.com/LSSTDESC/firecrown@v1.16.0
+    - git+https://github.com/LSSTDESC/firecrown@7098afc792a439218245257c3802d491537a8f10
     - tjpcov==0.6.0
     - autoclasstoc
     - cobaya
