@@ -24,9 +24,9 @@ The source code is publicly available at https://github.com/LSSTDESC/CLPipe.
    :caption: Tutorials
 
    tutorials/README
-   tutorials/running_an_analysis
-   tutorials/txpipe
-   tutorials/covariance_tjpcov
-   tutorials/likelihood_firecrown
-   tutorials/theory_prediction
-   tutorials/writing_a_stage
+   tutorials/1_txpipe
+   tutorials/2_covariance_tjpcov
+   tutorials/3_likelihood_firecrown
+   tutorials/4_theory_prediction
+   tutorials/5_running_an_analysis
+   tutorials/6_writing_a_stage

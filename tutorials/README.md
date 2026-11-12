@@ -26,21 +26,22 @@ chains
 
 | Step | Code | Tutorial |
 |---|---|---|
-| Measurements | cluster stages of TXPipe (in the TXPipe repository) | [txpipe.md](txpipe.md) |
-| Covariance | `clpipe/clp_covariance.py`, built on TJPCov | [covariance_tjpcov.ipynb](covariance_tjpcov.ipynb) |
-| Likelihood and sampling | `clpipe/clp_firecrown.py`, with Firecrown and CosmoSIS | [likelihood_firecrown.ipynb](likelihood_firecrown.ipynb) |
-| Predictions for given parameters | `clpipe/cluster_theory_pred.py` | [theory_prediction.ipynb](theory_prediction.ipynb) |
+| Measurements | cluster stages of TXPipe (in the TXPipe repository) | [1_txpipe.md](1_txpipe.md) |
+| Covariance | `clpipe/clp_covariance.py`, built on TJPCov | [2_covariance_tjpcov.ipynb](2_covariance_tjpcov.ipynb) |
+| Likelihood and sampling | `clpipe/clp_firecrown.py`, with Firecrown and CosmoSIS | [3_likelihood_firecrown.ipynb](3_likelihood_firecrown.ipynb) |
+| Predictions for given parameters | `clpipe/cluster_theory_pred.py` | [4_theory_prediction.ipynb](4_theory_prediction.ipynb) |
+| Full run | pipeline files, configuration file and job script of a run directory | [5_running_an_analysis.md](5_running_an_analysis.md) |
 | Plots of the chains | `clpipe/utils/cosmosis_mcmc_plots.py` | used in `examples/cosmodc2_redmapper/plot_samples.ipynb` |
 
 ## Where to start
 
-If you are new to CLPipe, start with
-[running_an_analysis.md](running_an_analysis.md). It explains how a run is
-configured and launched, and where its outputs end up. Then go through the
-steps in the order of the pipeline.
+Go through the tutorials in the order of their numbers. The first four follow
+the steps of the pipeline one by one, and
+[5_running_an_analysis.md](5_running_an_analysis.md) puts them together in a
+full run, with its configuration files, job script and outputs.
 
 To add your own step to the pipeline, see
-[writing_a_stage.ipynb](writing_a_stage.ipynb).
+[6_writing_a_stage.ipynb](6_writing_a_stage.ipynb).
 
 ## Environments and kernels
 

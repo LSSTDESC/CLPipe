@@ -7,9 +7,9 @@ which has a set of stages for clusters. A CLPipe run calls them through the
 `TXPipe.yml` file of its run directory, in the `txpipe_clp` environment, and
 the next steps start from the SACC file they write.
 
-The code and the documentation of these stages are in TXPipe
-(https://txpipe.readthedocs.io). This page only says what CLPipe uses and
-where to look.
+The code of these stages is in TXPipe, and they are described in the
+[TXPipe documentation](https://txpipe.readthedocs.io). This page only says what
+CLPipe uses and where to look.
 
 ## Version
 
@@ -65,7 +65,7 @@ CLClusterSACC:
 It holds the counts in each redshift and richness bin, the profiles in each
 radial bin, and the covariance of the profiles. `CLPCovariance` adds the
 covariance of the counts (see
-[covariance_tjpcov.ipynb](covariance_tjpcov.ipynb)).
+[2_covariance_tjpcov.ipynb](2_covariance_tjpcov.ipynb)).
 
 To try the stages on a small sample, the `examples/cosmoDC2-1deg2` run uses
 the 1 deg$^2$ TXPipe example data, and its README explains how to get it.
