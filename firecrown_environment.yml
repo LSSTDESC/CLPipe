@@ -27,7 +27,7 @@ dependencies:
   - pip >= 20.1
   - portalocker
   - pybobyqa
-  - pyccl >= 2.8.0
+  - pyccl =3.2.1
   - pydantic
   - pylint
   - pytest
@@ -35,7 +35,7 @@ dependencies:
   - python >=3.12
   - pyyaml
   - requests
-  - sacc >= 2.1
+  - sacc =2.1.2
   - scipy
   - tabulate
   - types-pyyaml
@@ -57,13 +57,13 @@ dependencies:
   - myst-nb
   - sphinxcontrib-apidoc
   - pip:
-    - ceci >= 2.5
+    - ceci ==2.5
     - qp-prob
-    - git+https://github.com/LSSTDESC/CLMM.git@1.14.6
+    - clmm ==1.16.1
     - git+https://github.com/LSSTDESC/firecrown@7098afc792a439218245257c3802d491537a8f10
     - tjpcov==0.6.0
     - autoclasstoc
     - cobaya
     - isitgr
-    - git+https://github.com/LSSTDESC/crow@8a79d037a9f35a9f16cf95c7f683692c8f536265
+    - lsstdesc-crow ==1.0.12
     - sphinx_copybutton
