@@ -8,7 +8,7 @@
 
 [![Build and Check](https://github.com/LSSTDESC/CLPipe/actions/workflows/ci.yml/badge.svg)](https://github.com/LSSTDESC/CLPipe/actions/workflows/ci.yml)
 [![Coverage Status](https://codecov.io/gh/LSSTDESC/CLPipe/branch/main/graph/badge.svg)](https://codecov.io/gh/LSSTDESC/CLPipe)
-[![Documentation](https://github.com/LSSTDESC/CLPipe/actions/workflows/docs.yml/badge.svg)](https://lsstdesc.github.io/CLPipe/)
+[![Documentation](https://github.com/LSSTDESC/CLPipe/actions/workflows/docs.yml/badge.svg)](https://lsstdesc.org/CLPipe/)
 
 CLPipe is the current implementation of the LSST DESC Cluster Pipeline,
 developed by the Cluster Working Group of the LSST Dark Energy Science
@@ -27,16 +27,20 @@ changing the rest of the pipeline. The current version runs a binned analysis
 of cluster counts and stacked weak lensing profiles, and has been validated on
 mock data and on the cosmoDC2 redMaPPer cluster catalog.
 
+The documentation is at https://lsstdesc.org/CLPipe/. It includes the
+tutorials of the [`tutorials`](tutorials) folder, which show how to run an
+analysis, how each step works, and how to add a stage.
+
 ## Installation
 
 To run the examples, there is no need to create new Conda environments — shared
 environments are already available on both IN2P3 and NERSC.
 
 
-Because some Python packages required for Firecrown are incompatible with those required for TXPipe and TJPCov, two environments are provided:
+Because some Python packages required for Firecrown are incompatible with those required for TXPipe, two environments are provided:
 
-- **Firecrown** — for MCMC inference
-- **TXPipe and TJPCov** — for data computation and covariance
+- **Firecrown** — for the covariance (TJPCov) and the MCMC inference
+- **TXPipe** — for the measurements
 
 ### Firecrown
 
@@ -48,7 +52,7 @@ conda activate /sps/lsst/groups/clusters/cl_pipeline_project/conda_envs/firecrow
 conda activate /global/cfs/projectdirs/lsst/groups/CL/cl_pipeline_project/conda_envs/firecrown_developer_clp
 ```
 
-### TXPipe and TJPCov
+### TXPipe
 
 ```bash
 # IN2P3

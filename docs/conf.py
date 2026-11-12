@@ -1,11 +1,22 @@
 project = "CLPipe"
 author = "LSST DESC CLPipe Contributors"
-release = "0.0.1"
+release = "1.0.0"
 
 import os
+import shutil
 import sys
 
 sys.path.insert(0, os.path.abspath(".."))
+
+# The tutorials live in ../tutorials. Copy their pages next to the docs so that
+# Sphinx renders them, without keeping a second version in git.
+_here = os.path.dirname(os.path.abspath(__file__))
+shutil.rmtree(os.path.join(_here, "tutorials"), ignore_errors=True)
+shutil.copytree(
+    os.path.join(_here, "..", "tutorials"),
+    os.path.join(_here, "tutorials"),
+    ignore=shutil.ignore_patterns("data", "outputs", ".ipynb_checkpoints", "*.log"),
+)
 
 root_doc = "index"
 extensions = [
@@ -15,7 +26,12 @@ extensions = [
     "sphinx.ext.viewcode",
     "sphinx_autodoc_typehints",
     "sphinx_copybutton",
+    "myst_nb",
 ]
+
+# The notebooks are stored with their outputs, so they are not run here.
+nb_execution_mode = "off"
+myst_enable_extensions = ["dollarmath"]
 
 autosummary_generate = True
 autodoc_member_order = "bysource"
